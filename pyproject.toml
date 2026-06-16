@@ -1,0 +1,33 @@
+[project]
+name = "pined-django"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "citrux", email = "369565@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "django>=5.2",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.21,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "pined.django"
+
+
+[tool.pyright]
+venv = ".venv"
+venvPath = "."
+reportUnusedCallResult = false
+
+[tool.ty.environment]
+root = ["."]
+
+[dependency-groups]
+dev = [
+    "django-stubs>=6.0.5",
+]
