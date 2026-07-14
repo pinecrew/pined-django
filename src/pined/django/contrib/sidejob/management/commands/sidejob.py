@@ -8,5 +8,4 @@ class Command(BaseCommand):
     def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument("backend", nargs="?", type=str, default="default")
 
-    def handle(self, *args, **options) -> None:
-        ...
+    def handle(self, *args, **options) -> None: ...

@@ -1,18 +1,19 @@
 from __future__ import annotations
-from typing import cast, TYPE_CHECKING, overload
 
-from asgiref.sync import async_to_sync, sync_to_async
-from inspect import iscoroutinefunction
-
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from collections.abc import Callable
+from inspect import iscoroutinefunction
+from typing import TYPE_CHECKING, cast, overload
 
-from .retry import RetryPolicy
+from asgiref.sync import async_to_sync, sync_to_async
+
 from .periodic import Schedule
+from .retry import RetryPolicy
 
 if TYPE_CHECKING:
     from .jobs import JobInfo, JobStatus
+
 
 @dataclass
 class TaskResult[T, **P]:
@@ -23,23 +24,23 @@ class TaskResult[T, **P]:
     def job(self) -> JobInfo[T, P]:
         return self.task.get_backend().fetch_job(self.job_id)
 
-
     @property
     def return_value(self) -> T:
         match self.job.status:
             case JobStatus.SUCCESSFUL:
-                return cast(T, self.job.return_value)
+                return cast("T", self.job.return_value)
             case JobStatus.FAILED:
                 raise ValueError("Task failed")
             case _:
                 raise ValueError("Task is not finished yet")
+
 
 @dataclass(frozen=True)
 class Task[T, **P]:
     func: Callable[P, T]
     priority: int
     backend: str
-    result_backend: str|None
+    result_backend: str | None
     queue_name: str
     run_after: datetime | None
     retry: RetryPolicy | None
@@ -56,10 +57,11 @@ class Task[T, **P]:
             return async_to_sync(self.func)(*args, **kwargs)
         return self.func(*args, **kwargs)
 
-    async def acall(self, *args: P.args, **kwargs: P.kwargs) -> T
+    async def acall(self, *args: P.args, **kwargs: P.kwargs) -> T:
         if iscoroutinefunction(self.func):
             return await self.func(*args, **kwargs)
         return await sync_to_async(self.func)(*args, **kwargs)
+
 
 # Bare decorator usage
 # e.g. @task
@@ -79,8 +81,6 @@ def task[T, **P](
 ) -> Callable[[Callable[P, T]], Task[T, P]]: ...
 
 
-
-
 # Implementation
 def task[T, **P](
     function: Callable[P, T] | None = None,
@@ -88,16 +88,12 @@ def task[T, **P](
     priority: int = DEFAULT_TASK_PRIORITY,
     queue_name: str = DEFAULT_TASK_QUEUE_NAME,
     backend: str = DEFAULT_TASK_BACKEND_ALIAS,
-    retry: RetryPolicy|None = None,
-    schedule: Schedule|None = None,
-) -> (
-    Task[T, P]
-    | Callable[[Callable[P, T]], Task[T, P]]
-):
+    retry: RetryPolicy | None = None,
+    schedule: Schedule | None = None,
+) -> Task[T, P] | Callable[[Callable[P, T]], Task[T, P]]:
     """
     A decorator used to create a task.
     """
-    from . import task_backends
 
     def wrapper(f: Callable[P, T]) -> Task[T, P]:
         return Task(

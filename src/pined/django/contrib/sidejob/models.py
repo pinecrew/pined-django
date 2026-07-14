@@ -1,5 +1,6 @@
 from django.db import models
 
+
 class TaskResult(models.Model):
     task = models.CharField()
     run = models.CharField()

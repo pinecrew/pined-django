@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+
+
 @dataclass(frozen=True)
 class Schedule:
     minutes: list[int]
