@@ -114,7 +114,7 @@ class AlterPydantic(Operation):
               default values from the Pydantic model. In other cases, you can
               manually select which fields values should be overriden with the
               values from the defaults. If you want to override all the fields,
-              you can pass an asterisk `"*"` as instead. **If the field already
+              you can pass an asterisk `"*"` instead. **If the field already
               has user data, it will be wiped**:
               ```
               AlterPydantic(
@@ -134,7 +134,7 @@ class AlterPydantic(Operation):
               ```
 
             - If you need to remove a field or do something more complex, you
-              can use `forwards_transform` and `backwards_transform`. It
+              can use `forwards_transform` and `backwards_transform`. It is
               applied after `forwards_defaults` and `backwards_defaults`, thus
               you can use new values in the transformer function. Also, you can
               use `R` to rename a field (*`R` values are applied before `P`
@@ -226,7 +226,7 @@ class AlterPydantic(Operation):
         app_label: str,
         schema_editor: BaseDatabaseSchemaEditor,
         from_state: ProjectState,  # noqa: ARG002
-        to_state: ProjectState,  # DB scheme does not change with AlterPydantic, so we can use to_state both times
+        to_state: ProjectState,  # DB schema does not change with AlterPydantic, so we can use to_state both times
     ) -> None:
         self.database_process(app_label, schema_editor, to_state, self.backwards_defaults, self.backwards_transform)
 
@@ -241,7 +241,7 @@ class AlterPydantic(Operation):
     ) -> None:
         model = state.apps.get_model(app_label, self.model_name)
         field = model._meta.get_field(self.name)
-        # technically, nothing stop you from calling AlterPydantic on any field, duh
+        # technically, nothing stops you from calling AlterPydantic on any field, duh
         if not isinstance(field, PydanticField):
             msg = f"{model.__name__}.{self.name} is not a PydanticField"
             raise TypeError(msg)
@@ -380,8 +380,9 @@ def _update_instance(context: UpdateContext, data: dict[str, Any], other: Sequen
     """
     Merges multiple layers of defaults into a single deserialized
     PydanticField value, in order:
-
-        plain defaults (simple values), models.F (db values) -> R (renames, old key is popped) -> P (copying)
+      - plain defaults (simple values) + models.F (db values)
+      - R (renames, old key is popped)
+      - P (value copying)
 
     Thus, P can reference values produced by F and R. A field may be written
     only if it is "untouched": missing from saved data, equal to its Pydantic
@@ -389,23 +390,23 @@ def _update_instance(context: UpdateContext, data: dict[str, Any], other: Sequen
     default are treated as user data and preserved.
     """
 
-    def _value_is_default(name: str) -> bool:
+    def value_is_default(name: str) -> bool:
         return data.get(name) == context.default_values.get(name)
 
-    def _should_set(field: str) -> bool:
+    def should_set(field: str) -> bool:
         return (
-            "*" in context.to_override or field in context.to_override or field not in data or _value_is_default(field)
+            "*" in context.to_override or field in context.to_override or field not in data or value_is_default(field)
         )
 
     def handle_rp(mapping: dict[str, str], pop: bool = False) -> None:
         for field, old_field in mapping.items():
             v = data.pop(old_field, models.NOT_PROVIDED) if pop else data.get(old_field, models.NOT_PROVIDED)
-            if v is not models.NOT_PROVIDED and _should_set(field):
+            if v is not models.NOT_PROVIDED and should_set(field):
                 data[field] = v
 
-    direct = {k: v for k, v in context.defaults.items() if k not in context.complex_keys and _should_set(k)}
+    direct = {k: v for k, v in context.defaults.items() if k not in context.complex_keys and should_set(k)}
     f_gathered = dict(zip(context.f_columns.keys(), other, strict=False))
-    f_values = {k: f_gathered.get(v) for k, v in context.f_fields.items() if _should_set(k)}
+    f_values = {k: f_gathered.get(v) for k, v in context.f_fields.items() if should_set(k)}
     data |= f_values | direct
 
     handle_rp(context.r_fields, pop=True)
@@ -440,20 +441,20 @@ class PydanticAwareAutodetector(MigrationAutodetector):
         return changes
 
     def generate_pydantic_operations(self, changes: dict[str, list[migrations.Migration]]) -> None:
-        # добавляем AlterPydantic после CreateModel и AddField
+        # adding AlterPydantic after CreateModel
         for migrations_list in changes.values():
             for migration in migrations_list:
                 migration.operations = self.inject_after_createmodel(migration.operations)
 
-        # ищем изменение схемы среди всех PydanticField
+        # looking for changes in all PydanticFields
         schema_operations = self.detect_schema_change()
         for app_label, ops in schema_operations.items():
             if not ops:
                 continue
 
             existing = changes.setdefault(app_label, [])
-            # Если есть существующие миграции, то докидываем операцию
-            # в последнюю. Если нет, то надо сделать новую миграцию.
+            # If there are existing migrations, append to it,
+            # otherwise create a new one
             if existing:
                 existing[-1].operations.extend(ops)
             else:
@@ -478,17 +479,22 @@ class PydanticAwareAutodetector(MigrationAutodetector):
 
     def detect_schema_change(self) -> dict[str, list[AlterPydantic]]:
         result: dict[str, list] = {}
-        # сомневаюсь, что можно как-то попроще это сделать, без полноценного
-        # перебора всех моделей стейта, т.к. надо доставать из них поля
+        # NOTE: I doubt there's any simpler way to do this without iterating
+        #       over every single model in the state, since we need to extract
+        #       fields from them
         for (app_label, model_name), model_state in self.to_state.models.items():
             for field_name, field in model_state.fields.items():
                 if not isinstance(field, PydanticField):
                     continue
 
                 new_hash = field.current_schema
-                # поля или модели могло не существовать
+                # field or model itself may not exist before
                 old_model = self.from_state.models.get((app_label, model_name), None)
-                old_hash = getattr(old_model.fields.get(field_name), "_schema_hash", None) if old_model else None
+                if old_model is None:
+                    # AlterPydantic is handled via inject_after_createmodel
+                    continue
+
+                old_hash = getattr(old_model.fields.get(field_name), "_schema_hash", None)
 
                 if old_hash == new_hash:
                     continue
@@ -511,13 +517,16 @@ class PydanticAwareAutodetector(MigrationAutodetector):
         return result
 
     def _make_migration(self, app_label: str, operations: list[Operation]) -> migrations.Migration:
-        # в _build_migration_list есть создание миграций, но отдельно его не вынесли
+        # there's a migration creation in _build_migration_list, but it wasn't
+        # extracted to a separate function, so let's just create a new one here
+        # but in a simpler manner (without subclasses and all that stuff)
         migration = migrations.Migration("auto_pydantic", app_label)
         migration.operations = operations
         return migration
 
     def _ask_defaults(self, model: type[pydantic.BaseModel], model_name: str, field_name: str) -> dict[str, Any]:
-        # если вызывать не через makemigrations, то будет неинтерактивный, а нам такое не надо
+        # if this is called not via makemigrations, it won't be interactive;
+        # that's not what we want here
         if not isinstance(self.questioner, InteractiveMigrationQuestioner):
             return {}
 
@@ -527,12 +536,17 @@ class PydanticAwareAutodetector(MigrationAutodetector):
         if not required:
             return {}
 
-        q.prompt_output.write(f"\nThe schema of {model_name}.{field_name} has changed.")
-        q.prompt_output.write(
-            "For each required field provide a default value to backfill existing rows.\n"
+        prompts = (
+            f"\nThe schema of {model_name}.{field_name} has changed.",
+            "Since it can't be determined if present required fields have"
+            " existed before the change or just have been added, you will be"
+            " asked to fill default values for all of them.",
+            "For each required field provide a default value to backfill existing rows.",
             '(Enter a python literal, e.g. "string", 42, []. Leaving blank value will skip the process, but the'
-            " migration will fail if any existing row is missing the field value)\n"
+            " migration will fail if any existing row is missing the field value)",
         )
+        for prompt in prompts:
+            q.prompt_output.write(prompt)
 
         defaults = {}
         for name in required:
@@ -550,7 +564,7 @@ class PydanticAwareAutodetector(MigrationAutodetector):
                     q.prompt_output.write("  exiting...\n")
                     sys.exit(1)
 
-                if not raw:  # пустая строка
+                if not raw:  # empty string
                     q.prompt_output.write("Skipping...\n")
                     break
 
