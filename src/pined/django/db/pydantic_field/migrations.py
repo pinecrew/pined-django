@@ -30,6 +30,7 @@ class P:
     Get a value from another field of the Pydantic model.
     """
 
+    __module__ = "pined.django.db.models"
     __slots__ = ("field_name",)
 
     def __init__(self, field_name: str) -> None:
@@ -41,6 +42,7 @@ class R:
     Rename a field in the Pydantic model.
     """
 
+    __module__ = "pined.django.db.models"
     __slots__ = ("old_name",)
 
     def __init__(self, old_name: str) -> None:

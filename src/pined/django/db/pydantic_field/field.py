@@ -25,6 +25,8 @@ if TYPE_CHECKING:
 
 
 class PydanticField[T: pydantic.BaseModel](models.JSONField):
+    __module__ = "pined.django.db.models"
+
     def __init__(  # noqa: PLR0913
         self,
         model: type[T],
@@ -32,7 +34,7 @@ class PydanticField[T: pydantic.BaseModel](models.JSONField):
         name: str | None = None,
         encoder: type[json.JSONEncoder] | None = None,
         decoder: type[json.JSONDecoder] | None = None,
-        default: Callable | None = models.NOT_PROVIDED,
+        default: Callable | models.NOT_PROVIDED | None = models.NOT_PROVIDED,
         **kwargs,
     ) -> None:
         if encoder is None:
@@ -61,7 +63,7 @@ class PydanticField[T: pydantic.BaseModel](models.JSONField):
 
         return self._pydantic_model.model_validate(v)
 
-    def get_db_prep_value(self, value: Any, connection: BaseDatabaseWrapper, prepared: bool = False) -> Any:  # noqa: PLR0911
+    def get_db_prep_value(self, value: Any, connection: BaseDatabaseWrapper, prepared: bool = False) -> Any:  # noqa: PLR0911, C901
         if self.null and value is None:
             return None
 
@@ -91,7 +93,9 @@ class PydanticField[T: pydantic.BaseModel](models.JSONField):
                 if hasattr(expr, "default"):
                     return self.get_db_prep_value(expr.default, connection, prepared)
 
-            return self.get_db_prep_value(expr.value, connection, prepared)
+            if hasattr(expr, "value"):
+                return self.get_db_prep_value(expr.value, connection, prepared)
+            return self.get_db_prep_value(expr, connection, prepared)
 
         return super().get_db_prep_value(value, connection, prepared)
 
@@ -105,17 +109,16 @@ class PydanticField[T: pydantic.BaseModel](models.JSONField):
 
     def deconstruct(self) -> tuple[str, str, Sequence[Any], dict[str, Any]]:
         name, path, args, kwargs = super().deconstruct()
-        orig_import_path = "pined.django.db.pydantic_field.field."
-        if path.startswith(orig_import_path):
-            path = path.replace(orig_import_path, "drops.db.models.")
         return name, path, (self._pydantic_model, *args), kwargs
 
-    def value_to_string(self, obj: models.Model) -> str | None:
+    def value_to_string(self, obj: models.Model) -> dict | list | None:
         if self.null and obj is None:
             return None
 
         # some apps may pass a dict / list, not a BaseModel (I'm looking at you, easyaudit)
         value = self.value_from_object(obj)
+        if value is None:
+            return None
         if isinstance(value, dict | list):
             return value
         return value.model_dump()

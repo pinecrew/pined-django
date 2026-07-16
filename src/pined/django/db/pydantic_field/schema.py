@@ -46,8 +46,9 @@ class _SchemaGenerator:
 
     @classmethod
     def describe_metadata_item(cls, item: Any) -> Any:
-        if callable(item) and hasattr(item, "__qualname__"):
-            return f"<callable {item.__module__}.{item.__qualname__}>"
+        result = repr(item)
+        if " at 0x" in result:
+            return f"<{type(item).__module__}.{type(item).__qualname__}>"
 
         # The validator's repr contains the function's repr, which includes a
         # memory address from that exact moment. This is just a tiny bit
@@ -60,7 +61,7 @@ class _SchemaGenerator:
                 "fields": {name: cls.describe_metadata_item(getattr(item, name)) for name in fields},
             }
 
-        return repr(item)
+        return result
 
     @classmethod
     def describe_field(cls, field: pydantic.fields.FieldInfo, seen: set[type]) -> dict:
@@ -68,18 +69,20 @@ class _SchemaGenerator:
             "annotation": cls.describe_annotation(field.annotation, seen),
             "required": field.is_required(),
             "default": None if field.is_required() else repr(field.default),
+            "default_factory": cls.describe_metadata_item(field.default_factory) if field.default_factory else None,
             "metadata": [cls.describe_metadata_item(item) for item in (field.metadata or [])],
             # purposefully skipping the json_schema_extra
         }
 
     @classmethod
     def describe_model(cls, model: type[pydantic.BaseModel], seen: set[type]) -> dict:
+        model_ref = f"{model.__module__}.{model.__qualname__}"
         if model in seen:
-            return {"__ref__": model.__qualname__}
+            return {"__ref__": model_ref}
 
         seen.add(model)
         return {
-            "__model__": model.__qualname__,
+            "__model__": model_ref,
             "fields": {name: cls.describe_field(field, seen) for name, field in model.model_fields.items()},
         }
 
