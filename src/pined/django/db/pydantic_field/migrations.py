@@ -36,7 +36,14 @@ if TYPE_CHECKING:
 @dataclass(frozen=True, slots=True, eq=False)
 class F:
     """
-    Get a value from another model field.
+    Pull a default value from another field on the same Django model.
+
+    Used inside `AlterPydantic`'s `forwards_defaults`/`backwards_defaults`
+    to copy an already-stored column's value into the Pydantic field
+    being migrated, instead of hardcoding a default. `field_name` may be
+    a dotted path to reach into a nested `PydanticField`/`JSONField`,
+    e.g. `"extra_info.software.update_attempts"`. `default_value` is
+    used when the source field/path holds no value.
     """
 
     __module__ = "pined.django.db.models"
@@ -48,7 +55,12 @@ class F:
 @dataclass(frozen=True, slots=True, eq=False)
 class P:
     """
-    Get a value from another field of the Pydantic model.
+    Copy a value from another field of the same Pydantic model, once
+    it's set.
+
+    Used inside `AlterPydantic`'s `forwards_defaults`/`backwards_defaults`.
+    Resolved after `F` and `R`, so it can pick up values produced by
+    either.
     """
 
     __module__ = "pined.django.db.models"
@@ -59,7 +71,11 @@ class P:
 @dataclass(frozen=True, slots=True, eq=False)
 class R:
     """
-    Rename a field in the Pydantic model.
+    Rename a field of the Pydantic model, keeping its stored value.
+
+    Used inside `AlterPydantic`'s `forwards_defaults`/`backwards_defaults`
+    to move `old_name`'s value onto the key it's assigned to, without
+    touching the value itself. Resolved before `P`.
     """
 
     __module__ = "pined.django.db.models"
@@ -68,6 +84,18 @@ class R:
 
 
 class AlterPydantic(Operation):
+    """
+    A migration operation that revalidates a `PydanticField`'s stored
+    data against a new schema.
+
+    Generated automatically when a `PydanticField`'s Pydantic model
+    changes shape, or written by hand for a data migration. Running it
+    re-reads every row's JSON value, applies any
+    defaults/renames/transform, and re-saves it validated against the
+    model for `schema_hash`. See `__init__` for the available options
+    and worked examples.
+    """
+
     __module__ = "pined.django.db.models"
 
     reduces_to_sql = False  # doesn't run in sqlmigrate
@@ -88,25 +116,32 @@ class AlterPydantic(Operation):
         override_fields: list[str] | Literal["*"] | None = None,
     ) -> None:
         """
-        Perform actions related to changing internal Pydantic model.
+        Set up an operation that revalidates a `PydanticField`'s stored
+        data against a new schema version.
 
         Args:
-            model_name: Name of the Django model, e.g., "Options"
-            name: Field name, e.g., "email_settings"
-            schema_hash: Hash of the new schema
-            previous_schema_hash: Hash of the previous schema
-            forwards_defaults: Default values for migrating to the new schema
-            backwards_defaults: Default values for rolling back to the previous
-                schema
-            forwards_transform: Value transformation function when migrating
-                to the new schema. Applied after adding default values
-            backwards_transform: Value transformation function when rolling back
-                to the new schema. Applied after adding default values
-            override_fields: Names of fields which values should be overridden
-                from the default values
+            model_name: Name of the Django model, e.g. "Options".
+            name: Name of the `PydanticField` on that model, e.g.
+                "email_settings".
+            schema_hash: Hash of the schema being migrated to.
+            previous_schema_hash: Hash of the schema being migrated from. Left
+                unset when the field is being created for the first time.
+            forwards_defaults: Values to backfill when migrating forwards to
+                the new schema.
+            backwards_defaults: Values to backfill when rolling back to the
+                previous schema.
+            forwards_transform: Arbitrary transform applied to the raw JSON
+                value when migrating forwards, run after `forwards_defaults`
+                has been applied.
+            backwards_transform: Arbitrary transform applied to the raw JSON
+                value when rolling back, run after `backwards_defaults` has
+                been applied.
+            override_fields: Names of fields whose stored value should be
+                overwritten by the corresponding default, even if the row
+                already holds user data for them.
 
         Examples:
-            - A standard field migration without doing anything fancy:
+            - A standard field migration, with nothing beyond a schema bump:
               ```
               AlterPydantic(
                   model_name="options",
@@ -115,16 +150,14 @@ class AlterPydantic(Operation):
               ),
               ```
 
-            - In `forwards_defaults` and `backwards_defaults`, you can use
-              specialized classes to access data from different sources.
-              Instance of `F` allows to copy value from another field of the
-              current Django model. Instance of `P` allows to copy data from
-              another field of the Pydantic model. Instance of `R` allows to
-              rename another Pydantic field without changing its value. If you
-              want to get nested value from another PydanticField or JSONField,
-              you can use `F`, but pass whole path (with dot "." as separator)
-              to value as an argument. Notice, `P` is applied after the `R`, and
-              the `R` is applied after the `F`.
+            - `forwards_defaults`/`backwards_defaults` can hold plain values,
+              or one of three helper classes that pull a value from somewhere
+              else instead: `F` copies from another field on the same Django
+              model (pass a dotted path to reach into a nested `PydanticField`
+              or `JSONField`), `P` copies from another field of the same
+              Pydantic model, and `R` renames a Pydantic field while keeping
+              its value. They resolve in the order `F`, then `R`, then `P` —
+              so `P` can read a value that `F` or `R` just produced:
               ```
               AlterPydantic(
                   model_name="terminal",
@@ -138,20 +171,22 @@ class AlterPydantic(Operation):
                       "android_version": R("os_version"),
                       # notice, here P copies value from R
                       "also_version": P("android_version"),
-                      # dig out the "update_attempts" from the JSONField named
-                      # "extra_info", containing a dict with "software" as a key
-                      # and nested dict with "update_attempts" as a key
-                      "update_attempts": F("extra_info.software.update_attempts"),
+                      # dig out "update_attempts" from the JSONField named
+                      # "extra", containing a dict with "software" as a key
+                      # and a nested dict with "update_attempts" as a key
+                      "update_attempts": F("extra.software.update_attempts"),
                   },
               )
               ```
 
-            - When creating a new field, `forwards_defaults` will override the
-              default values from the Pydantic model. In other cases, you can
-              manually select which fields values should be overriden with the
-              values from the defaults. If you want to override all the fields,
-              you can pass an asterisk `"*"` instead. **If the field already
-              has user data, it will be wiped**:
+            - When a field is being created for the first time, its
+              `forwards_defaults` always take precedence over the Pydantic
+              model's own defaults. Otherwise, a value in `forwards_defaults`/
+              `backwards_defaults` is only written where the row's current
+              value is missing or still equal to the Pydantic default — pass
+              the field's name in `override_fields` to force it in every row
+              instead, or pass `"*"` to force all of them. **This overwrites
+              existing user data for those fields**:
               ```
               AlterPydantic(
                   model_name="options",
@@ -159,24 +194,24 @@ class AlterPydantic(Operation):
                   schema_hash="82ba0e105240e9da",
                   forwards_defaults={
                       "max_backup": 20,
-                      "terminal_log_retention": 10,  # None is the default for field in model
+                      "terminal_log_retention": 10,  # field's own default
                   },
-                  # terminal_log_retention won't change in the entries where it wasn't None,
-                  # since it does not match the default value.
-                  # max_backup, on the other hand, will become 20 in every instance,
-                  # since it is passed in override_fields
+                  # terminal_log_retention stays put in rows where it wasn't
+                  # None, since that doesn't match the Pydantic default.
+                  # max_backup becomes 20 everywhere, since it's listed in
+                  # override_fields.
                   override_fields=["max_backup"],
               )
               ```
 
-            - If you need to remove a field or do something more complex, you
-              can use `forwards_transform` and `backwards_transform`. It is
-              applied after `forwards_defaults` and `backwards_defaults`, thus
-              you can use new values in the transformer function. Also, don't
-              forget that you can use `R` to rename a field:
+            - For anything `forwards_defaults`/`backwards_defaults` can't
+              express — removing a field outright, computing a value from
+              several others — pass a plain function as `forwards_transform`/
+              `backwards_transform`. It runs last, after defaults have been
+              applied, and receives/returns the field's raw JSON value:
               ```
-              def update_version_field(data: dict[str, Any]) -> dict[str, Any]:
-                    # here data is underlying json value of Pydantic field
+              def replace_version_field(data: dict[str, Any]) -> dict[str, Any]:
+                    # `data` is the PydanticField's underlying JSON value
                     data.pop("current_software_version", None)
                     data["software_version"] = random.randint(0, 20)
                     return data
@@ -185,7 +220,7 @@ class AlterPydantic(Operation):
                   model_name="terminal",
                   name="metadata",
                   schema_hash="3a14deee5c255329",
-                  forwards_transform=delete_version_field,
+                  forwards_transform=replace_version_field,
               )
               ```
         """
@@ -289,6 +324,15 @@ class AlterPydantic(Operation):
 
 @dataclass
 class UpdateContext:
+    """
+    Everything `_bulk_update` needs to revalidate one `PydanticField`
+    across a table.
+
+    Built once per `AlterPydantic` run by `_process_database` and
+    threaded through the row-by-row revalidation in
+    `_bulk_update`/`_revalidate_row`.
+    """
+
     parent: type[models.Model]
     model: type[pydantic.BaseModel]
     defaults: MutableMapping[str, Any]
@@ -311,6 +355,16 @@ class UpdateContext:
 
 
 def _get_field_default(model: type[pydantic.BaseModel], field_name: str) -> Any:
+    """
+    Return `field_name`'s default value on `model`, serialized like
+    stored data.
+
+    Returns `models.NOT_PROVIDED` for required fields, since that value
+    can never match real stored data — such fields are only ever
+    backfilled, via `override_fields` or when missing from a row
+    entirely.
+    """
+
     info: pydantic.fields.FieldInfo | None = model.model_fields.get(field_name)
     if not info or info.is_required():
         # NOT_PROVIDED would never equal stored data, so such fields are only
@@ -330,10 +384,20 @@ def _process_database(  # noqa: PLR0913
     transform: DataTransformer | None,
     override_fields: list[str] | Literal["*"] | None = None,
 ) -> None:
+    """
+    Build an `UpdateContext` for `field` and revalidate every row of
+    `model`'s table.
+
+    Resolves `schema_hash` back to a Pydantic model via `SchemaManager`,
+    sorts `defaults` into plain values vs. `F`/`P`/`R` lookups, and hands
+    the result to `_bulk_update`. A no-op if there's no schema to
+    migrate to (rolling back past field creation) or no column to
+    update against.
+    """
+
     if schema_hash is None or not getattr(field, "column", None):
-        # The only way to achieve first part of the condition is to roll back
-        # model or field creation migration. Second part is somewhat ridiculous,
-        # but what if somebody did set db_column to None?
+        # Rolling back past a field's creation migration leaves schema_hash
+        # None. A missing column is unlikelier — db_column set to None by hand.
         return
 
     manager = SchemaManager(
@@ -411,6 +475,17 @@ def _process_database(  # noqa: PLR0913
 
 
 def unnest(f: tuple[str, Any], data: Any, model: type[models.Model]) -> Any:
+    """
+    Resolve an `F` lookup — `(dotted "field.path", default)` — against
+    a row's `f_columns` values.
+
+    `data` maps `F`-referenced field names to their raw column values,
+    as gathered by `_update_instance`. If the top-level field turns out
+    to be a `JSONField` whose driver returned a string instead of
+    decoded JSON (SQLite does this), it's parsed before descending into
+    `path`.
+    """
+
     getter, default = f
     field_name, *path = getter.split(".")
     field_value = get_nested(data, field_name)
@@ -424,10 +499,16 @@ def unnest(f: tuple[str, Any], data: Any, model: type[models.Model]) -> Any:
 
 
 def _bulk_update(conn: BaseDatabaseWrapper, context: UpdateContext) -> None:
-    # chunked_cursor gives a server-side cursor on PostgreSQL instead of plain
-    # "cursor" that stores data in client memory. Thus, select now streams in
-    # batches, and updates are made with a separate cursor — it doesn't
-    # interfere with chunked_cursor
+    """
+    Stream `context.select_sql`'s rows, revalidate each, and write
+    results back in batches.
+
+    Uses a chunked (server-side, on PostgreSQL) cursor for the select
+    so large tables aren't pulled into memory at once, and a separate
+    plain cursor for updates so it doesn't interfere with the
+    streaming select.
+    """
+
     with conn.chunked_cursor() as cursor:
         cursor.execute(context.select_sql)
 
@@ -455,16 +536,16 @@ def _update_instance(
     context: UpdateContext, data: MutableMapping[str, Any], other: Sequence[Any]
 ) -> MutableMapping[str, Any]:
     """
-    Merges multiple layers of defaults into a single deserialized
-    PydanticField value, in order:
-      - plain defaults (simple values) + F (db values)
-      - R (renames, old key is popped)
-      - P (value copying)
+    Merge defaults, `F`/`R`/`P` lookups, and existing data into one
+    deserialized `PydanticField` value.
 
-    Thus, P can reference values produced by F and R. A field may be written
-    only if it is "untouched": missing from saved data, equal to its Pydantic
-    default, or listed in override_fields. Values that differ from the Pydantic
-    default are treated as user data and preserved.
+    Applied in this order: plain defaults and `F` values (already
+    fetched db columns) are merged first, then `R` renames (popping
+    the old key), then `P` copies — so `P` can reference values
+    produced by `F` or `R`. A field is only overwritten if it's
+    "untouched": missing from the saved data, equal to its Pydantic
+    default, or listed in `override_fields`. Values that differ from
+    the default are treated as user data and left alone.
     """
 
     def value_is_default(name: str) -> bool:
@@ -492,6 +573,15 @@ def _update_instance(
 
 
 def _revalidate_row[PK](context: UpdateContext, pk: PK, raw: str | dict | list, other: Sequence[Any]) -> tuple[str, PK]:
+    """
+    Merge defaults into one row's value, validate it against the new
+    model, and return `(json, pk)` to write back.
+
+    Raises `RuntimeError` (chaining the original
+    `pydantic.ValidationError`) if the merged data doesn't validate,
+    identifying the offending row by `pk`.
+    """
+
     data = json.loads(raw) if isinstance(raw, str) else raw
 
     if isinstance(data, dict):
@@ -510,6 +600,11 @@ def _revalidate_row[PK](context: UpdateContext, pk: PK, raw: str | dict | list, 
 
 
 class PydanticAwareAutodetector(MigrationAutodetector):
+    """
+    A `MigrationAutodetector` that also emits `AlterPydantic` operations
+    for `PydanticField` schema changes.
+    """
+
     generated_operations: dict[str, list[Operation]]
 
     # Imagine: you want to add a new type of detectable changes that requires
@@ -547,6 +642,11 @@ class PydanticAwareAutodetector(MigrationAutodetector):
         super()._sort_migrations()
 
     def generate_pydantic_operations(self) -> None:
+        """
+        Add `AlterPydantic` operations for newly-created and
+        schema-changed `PydanticField`s.
+        """
+
         # adding AlterPydantic after CreateModel
         for app_label, ops in self.generated_operations.items():
             extra = []
@@ -592,6 +692,11 @@ class PydanticAwareAutodetector(MigrationAutodetector):
         backwards_transform: DataTransformer | None = None,
         override_fields: list[str] | Literal["*"] | None = None,
     ) -> AlterPydantic:
+        """
+        Build an `AlterPydantic` for `model`, recording its schema
+        under `schema_hash` unless this is a dry run.
+        """
+
         operation = AlterPydantic(
             model_name,
             name,
@@ -612,11 +717,18 @@ class PydanticAwareAutodetector(MigrationAutodetector):
         return operation
 
     def detect_schema_change(self) -> dict[str, list[AlterPydantic]]:
-        result: dict[str, list] = {}
+        """
+        Find every `PydanticField` whose schema hash changed and build
+        an `AlterPydantic` for each.
 
-        # I doubt, there's any simpler way to do this without iterating over
-        # every single model in the current state, since we need to extract
-        # all the fields from all the models.
+        Fields on newly-created models are skipped here — those are
+        handled by `generate_pydantic_operations` right after their
+        `CreateModel`. Has to walk every model in `to_state`, since
+        fields aren't indexed by type anywhere the autodetector already
+        iterates.
+        """
+
+        result: dict[str, list] = {}
 
         for (app_label, model_name), model_state in self.to_state.models.items():
             # check if app_label was set in makemigrations command
@@ -659,8 +771,15 @@ class PydanticAwareAutodetector(MigrationAutodetector):
         return result
 
     def _ask_defaults(self, model: type[pydantic.BaseModel], model_name: str, field_name: str) -> dict[str, Any]:
-        # if this is called not via makemigrations, it won't be interactive;
-        # that's not what we want here
+        """
+        Interactively prompt for a default value for each of `model`'s
+        required fields.
+
+        Mirrors `makemigrations`'s own field-default prompts. Returns
+        `{}` outside an interactive `makemigrations` run, since there
+        would be no one to answer the prompts.
+        """
+
         if not isinstance(self.questioner, InteractiveMigrationQuestioner):
             return {}
 

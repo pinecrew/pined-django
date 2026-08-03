@@ -1,3 +1,11 @@
+"""
+A Django model field that stores a Pydantic model as JSON.
+
+`PydanticField` behaves like a `JSONField`, but reads and writes come out as
+validated instances of the Pydantic model it was declared with, instead of
+plain dicts/lists.
+"""
+
 from __future__ import annotations
 
 import contextlib
@@ -24,6 +32,14 @@ if TYPE_CHECKING:
 
 
 class PydanticField[T: pydantic.BaseModel](models.JSONField):
+    """
+    A `JSONField` that (de)serializes its value through a Pydantic model.
+
+    Reading the field off a model instance always yields a validated
+    instance of `model`; writing accepts either an instance of `model` or a
+    plain dict/list that can be validated into one.
+    """
+
     __module__ = "pined.django.db.models"
 
     def __init__(  # noqa: PLR0913
@@ -36,6 +52,15 @@ class PydanticField[T: pydantic.BaseModel](models.JSONField):
         default: Callable | models.NOT_PROVIDED | None = models.NOT_PROVIDED,
         **kwargs,
     ) -> None:
+        """
+        Set up the field for `model`, defaulting encoder and default value.
+
+        If `default` is left unset, an attempt is made to instantiate `model`
+        with no arguments. If that succeeds (i.e. every field has a default),
+        `model` itself is used as the default factory. Otherwise the field is
+        left without a default, same as a bare `JSONField` would be.
+        """
+
         if encoder is None:
             encoder = JSONEncoder
 
@@ -52,6 +77,10 @@ class PydanticField[T: pydantic.BaseModel](models.JSONField):
         self._schema_hash: str | None = None
 
     def from_db_value(self, value: str | None, expression: Expression, connection: BaseDatabaseWrapper) -> None | T:
+        """
+        Validate the raw JSON coming back from the database into `model`.
+        """
+
         v = super().from_db_value(value, expression, connection)
 
         # Querysets with select_related would set None if corresponding instance
@@ -63,6 +92,15 @@ class PydanticField[T: pydantic.BaseModel](models.JSONField):
         return self._pydantic_model.model_validate(v)
 
     def get_db_prep_value(self, value: Any, connection: BaseDatabaseWrapper, prepared: bool = False) -> Any:  # noqa: PLR0911, C901
+        """
+        Reduce `value` to something a plain `JSONField` can store.
+
+        `value` may be a `BaseModel` instance, a `models.Value`/`Expression`
+        wrapping one (e.g. produced by an `F()`/`Case()` query expression), or
+        already a plain dict/list. This unwraps expressions recursively until
+        it finds an actual value, then dumps any `BaseModel` to a dict.
+        """
+
         if self.null and value is None:
             return None
 
@@ -99,6 +137,13 @@ class PydanticField[T: pydantic.BaseModel](models.JSONField):
         return super().get_db_prep_value(value, connection, prepared)
 
     def to_python(self, value: Any) -> T | None:
+        """
+        Validate a form/deserialization-time value into `model`.
+
+        Wraps Pydantic's `ValidationError` in Django's `ValidationError`, so
+        it surfaces normally through model/form validation.
+        """
+
         if value is None:
             return None  # same logic as in from_db_value
         try:
@@ -107,10 +152,20 @@ class PydanticField[T: pydantic.BaseModel](models.JSONField):
             raise ValidationError(str(e)) from e
 
     def deconstruct(self) -> tuple[str, str, Sequence[Any], dict[str, Any]]:
+        """
+        Serialize the field for migrations, including `model` as the
+        first positional arg.
+        """
+
         name, path, args, kwargs = super().deconstruct()
         return name, path, (self._pydantic_model, *args), kwargs
 
     def value_to_string(self, obj: models.Model) -> dict | list | None:
+        """
+        Return the field's value as plain dict/list data, for fixture
+        serialization.
+        """
+
         if self.null and obj is None:
             return None
 
@@ -124,14 +179,29 @@ class PydanticField[T: pydantic.BaseModel](models.JSONField):
 
     @property
     def inner_model(self) -> type[T]:
+        """
+        The Pydantic model this field validates its value against.
+        """
+
         return self._pydantic_model
 
     def clone(self) -> PydanticField[T]:
+        """
+        Copy the field, carrying over the schema hash set by migrations.
+        """
+
         clone = super().clone()  # gets args from deconstruct and pass them into self.__class__
         clone._schema_hash = self._schema_hash
         return clone
 
     @property
     def current_schema(self) -> str:
+        """
+        The hash of `inner_model`'s current JSON schema.
+
+        Used to detect, at migration-generation time, whether the Pydantic
+        model has changed since the last recorded schema version.
+        """
+
         model_hash, _ = SchemaManager.generate_model_hash(self.inner_model)
         return model_hash
