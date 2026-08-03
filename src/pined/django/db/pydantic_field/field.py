@@ -7,14 +7,13 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from pined.django.serializers.json import JSONEncoder
 
-from .schema import generate_model_hash
-
 try:
     import pydantic
 except ImportError as exc:
-    msg = "Usage of PydanticField requires pydantic to be installed."
+    msg = 'To use PydanticField, install package with "pydantic-field" option: pined-django[pydantic-field].'
     raise ImportError(msg) from exc
 
+from .schema import SchemaManager
 
 if TYPE_CHECKING:
     import json
@@ -134,4 +133,5 @@ class PydanticField[T: pydantic.BaseModel](models.JSONField):
 
     @property
     def current_schema(self) -> str:
-        return generate_model_hash(self._pydantic_model)
+        model_hash, _ = SchemaManager.generate_model_hash(self.inner_model)
+        return model_hash
