@@ -8,7 +8,7 @@
 - The opening `"""` never shares a line with the summary text.
 - Always close first line of summary with a period.
 - Always leave a blank line between the closing `"""` and the first line of actual code
-  — **except** when that first line is an import, in which case do not leave a blank line.
+  - **except** when that first line is an import, in which case do not leave a blank line.
 - Docstring line should never exceed 80 characters.
   - **except** when it is a code fence in an example and it is not possible to write it
     shorter.
@@ -21,11 +21,11 @@
   - `Args` for describing function arguments
   - `Returns` or `Yields` for function result
   - `Examples` for usage examples (use `Example` if there's only one example)
-  - `Raises` if there are some specific Exceptions in some specific cases, that developer
+  - `Raises` if there are some specific Exceptions in some specific cases, that call site
     should know and care about
   - `Attributes` for describing class attributes
   - Do not write both `Attributes` on class and `Args` in `__init__` method. Docstring
-    with `Args` for `__init__` is preferable.
+    with `Args` in `__init__` is preferable.
 - Never write type hints in docstrings, use python typing for that.
 - Treat docstring as a Markdown text, not as a reStructuredText.
 
