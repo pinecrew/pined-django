@@ -250,6 +250,7 @@ class AlterPydantic(Operation):
             "backwards_defaults",
             "forwards_transform",
             "backwards_transform",
+            "override_fields",
         ):
             if value := getattr(self, field, None):
                 kwargs[field] = value
@@ -431,12 +432,12 @@ def _process_database(  # noqa: PLR0913
                 f_fields[key] = (value.field_name, value.default_value)
                 continue
 
-            field = model._meta.get_field(field_name)
-            if not getattr(field, "column", None):
+            source_field = model._meta.get_field(field_name)
+            if not getattr(source_field, "column", None):
                 continue
 
             f_fields[key] = (value.field_name, value.default_value)
-            f_columns[field_name] = cast("str", field.column)
+            f_columns[field_name] = cast("str", source_field.column)
         elif isinstance(value, P):
             p_fields[key] = value.field_name
         elif isinstance(value, R):

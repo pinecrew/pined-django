@@ -1,4 +1,4 @@
 from pined.django.db.pydantic_field.field import PydanticField
-from pined.django.db.pydantic_field.migrations import AlterPydantic, P, R
+from pined.django.db.pydantic_field.migrations import AlterPydantic, F, P, R
 
-__all__ = ["AlterPydantic", "P", "PydanticField", "R"]
+__all__ = ["AlterPydantic", "F", "P", "PydanticField", "R"]
