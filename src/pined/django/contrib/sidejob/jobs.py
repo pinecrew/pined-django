@@ -1,10 +1,11 @@
-from datetime import datetime
-from typing import TYPE_CHECKING, Any, cast
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum, auto
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .tasks import Task
+
 
 class JobStatus(StrEnum):
     READY = auto()
@@ -12,10 +13,12 @@ class JobStatus(StrEnum):
     FAILED = auto()
     SUCCESSFUL = auto()
 
+
 @dataclass
 class Error:
     exception_class_path: str
     traceback: str
+
 
 @dataclass
 class JobInfo[T, **P]:

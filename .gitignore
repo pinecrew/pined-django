@@ -1,0 +1,14 @@
+.vscode
+.idea
+.DS_Store
+
+*.egg-info
+__pycache__
+*.pyc
+
+.env
+db.sqlite3
+
+.coverage
+coverage.xml
+report.xml

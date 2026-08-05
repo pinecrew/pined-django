@@ -6,10 +6,27 @@ readme = "README.md"
 authors = [
     { name = "citrux", email = "369565@gmail.com" }
 ]
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
     "django>=5.2",
 ]
+
+[project.optional-dependencies]
+pydantic-field = [
+    "pydantic>=2.13.4",
+    "json-schema-to-pydantic>=0.4.11",
+]
+
+[dependency-groups]
+dev = [
+    "django-stubs>=6.0.5",
+    "poethepoet>=0.48.0",
+    "pydantic>=2.13.4",
+    "pytest>=9.1.1",
+    "pytest-django>=4.12.0",
+    "ruff>=0.15.21",
+]
+
 
 [build-system]
 requires = ["uv_build>=0.11.21,<0.12.0"]
@@ -19,15 +36,53 @@ build-backend = "uv_build"
 module-name = "pined.django"
 
 
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+output-format = "grouped"
+show-fixes = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+exclude = ["urls.py"]
+docstring-code-line-length = 80
+
+[tool.ruff.lint]
+select = [
+    "A", "ANN", "ARG", "B", "BLE", "C4", "C90", "DJ", "E", "EM", "F", "FA",
+    "FBT003", "G", "I", "INP", "INT", "ISC", "N", "PERF", "PGH004", "PIE",
+    "PL", "PT", "PTH", "Q", "RET", "RSE", "RUF", "SIM", "T20", "TC", "TID",
+    "UP", "W",
+]
+ignore = [
+    "ANN002", "ANN003", "ANN401", "A005", "DJ012", "RUF001", "RUF002",
+    "RUF003", "PLC2403", "RUF012", "ISC001", "PLC0415", "EM101",
+]
+
+[tool.ruff.lint.flake8-unused-arguments]
+ignore-variadic-names = true
+
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = ["pydantic.BaseModel",]
+
+
+[tool.poe.tasks.fix]
+sequence = [
+    { cmd = "ruff format ${check:+--check} $target", ignore_fail = true },
+    { cmd = "ruff check $target ${check:+--no-show-fixes --fix-only} ${check:---fix} ${unsafe:+--unsafe-fixes}" },
+]
+args = [
+    { name = "unsafe", options = ["--unsafe-fixes", "--unsafe"], type = "boolean" },
+    { name = "check", options = ["--check"], type = "boolean" },
+    { name = "target", default = ".", positional = true, multiple = true }
+]
+
 [tool.pyright]
 venv = ".venv"
 venvPath = "."
 reportUnusedCallResult = false
 
+
 [tool.ty.environment]
 root = ["."]
-
-[dependency-groups]
-dev = [
-    "django-stubs>=6.0.5",
-]
