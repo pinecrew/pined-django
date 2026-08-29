@@ -46,8 +46,6 @@ class F:
     used when the source field/path holds no value.
     """
 
-    __module__ = "pined.django.db.models"
-
     field_name: str
     default_value: Any = None
 
@@ -63,8 +61,6 @@ class P:
     either.
     """
 
-    __module__ = "pined.django.db.models"
-
     field_name: str
 
 
@@ -78,9 +74,13 @@ class R:
     touching the value itself. Resolved before `P`.
     """
 
-    __module__ = "pined.django.db.models"
-
     old_name: str
+
+
+# These are re-exported from `pined.django.db.models`, and generated migrations
+# should import them from there. `AlterPydantic` can say so in its class body,
+# but `F`/`P`/`R` cannot due to `@dataclass` resolving of annotations.
+F.__module__ = P.__module__ = R.__module__ = "pined.django.db.models"
 
 
 class AlterPydantic(Operation):
