@@ -1,5 +1,11 @@
 # pined-django
 
+## Writing for humans
+
+When writing something intended for human consumption (e.g., comment, commit
+message) use as few words as possible. Pick every word meticulously to reduce
+the volume to a strict minimum. Be to the point. Less is more.
+
 ## Docstring style
 
 - Never write a one-line docstring. Even a short summary gets the block
@@ -24,6 +30,7 @@
   - `Raises` if there are some specific Exceptions in some specific cases, that call site
     should know and care about
   - `Attributes` for describing class attributes
+  - `Note` for an aside that isn't part of the main description
   - Do not write both `Attributes` on class and `Args` in `__init__` method. Docstring
     with `Args` in `__init__` is preferable.
 - Never write type hints in docstrings, use python typing for that.
