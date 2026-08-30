@@ -1,16 +1,29 @@
 import sys
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+try:
+    from pydantic_settings import BaseSettings, SettingsConfigDict
+except ImportError as exc:
+    msg = 'To use `settings`, install package with "settings" option: pined-django[settings].'
+    raise ImportError(msg) from exc
 
-from .utils import alias_generator
+from .utils import DropUnset, alias_generator
 
 
-class DjangoSettings(BaseSettings):
+class DjangoSettings(DropUnset, BaseSettings):
     """
     Base class for a django project's settings.
+
+    A project usually adds no more than `env_prefix` and `env_file` of its own,
+    since pydantic merges `model_config` down the MRO instead of replacing it.
     """
 
-    model_config = SettingsConfigDict(alias_generator=alias_generator)
+    model_config = SettingsConfigDict(
+        alias_generator=alias_generator,
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_nested_delimiter="__",
+        extra="ignore",
+    )
 
     def __init__(self, **values) -> None:
         super().__init__(**values)
