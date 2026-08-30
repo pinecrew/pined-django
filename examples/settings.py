@@ -16,6 +16,8 @@ from pydantic_settings import SettingsConfigDict
 from pined.django.logging import Logger
 from pined.django.settings import DjangoSettings, components, mixins
 from pined.django.settings.admin import change_admin_site
+from pined.django.settings.contrib.debug_toolbar import DebugToolbar, DebugToolbarSettings, get_debug
+from pined.django.settings.contrib.rest_framework import RestFramework, RestFrameworkSettings
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent
 
@@ -93,7 +95,23 @@ class Logging(mixins.Logging):
     ignored_loggers: list[str] = ["PIL"]
 
 
-class ProjectSettings(General, Apps, Database, Auth, Templates, Static, I18n, Logging, DjangoSettings):
+class ThirdParty(DebugToolbarSettings, RestFrameworkSettings):
+    """
+    Two libraries this project would carry, were they installed.
+
+    Their apps belong in `Apps` alongside django's; the settings below
+    are inert until then, since the stubs import nothing.
+    """
+
+    debug_toolbar_config: DebugToolbar = DebugToolbar(show_toolbar_callback=get_debug)
+    rest_framework: RestFramework = RestFramework(
+        page_size=25,
+        search_param="filter[search]",
+        default_permission_classes=["rest_framework.permissions.IsAuthenticated"],
+    )
+
+
+class ProjectSettings(General, Apps, Database, Auth, Templates, Static, I18n, Logging, ThirdParty, DjangoSettings):
     """
     Reads `EXAMPLE_`-prefixed environment variables over the defaults above.
 
