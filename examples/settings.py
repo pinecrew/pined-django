@@ -11,10 +11,8 @@ keeps its own default for it.
 import logging
 import pathlib
 
-from pydantic_settings import SettingsConfigDict
-
 from pined.django.logging import Logger
-from pined.django.settings import DjangoSettings, components, mixins
+from pined.django.settings import components, configure, mixins
 from pined.django.settings.admin import change_admin_site
 from pined.django.settings.contrib.debug_toolbar import DebugToolbar, DebugToolbarSettings, get_debug
 from pined.django.settings.contrib.rest_framework import RestFramework, RestFrameworkSettings
@@ -24,11 +22,12 @@ BASE_DIR = pathlib.Path(__file__).resolve().parent
 
 class General(mixins.General):
     """
-    What the project is, and where its entry points live.
+    What the project is, where its entry points live, and when it is.
     """
 
     secret_key: str = "django-insecure-example"
     root_urlconf: str = "examples.urls"
+    time_zone: str = "Etc/UTC"
 
 
 class Apps(mixins.Apps):
@@ -75,14 +74,6 @@ class Static(mixins.Static):
     static_root: pathlib.Path = BASE_DIR / "static"
 
 
-class I18n(mixins.I18n):
-    """
-    The timezone; the language stays at django's default.
-    """
-
-    time_zone: str = "Etc/UTC"
-
-
 class Logging(mixins.Logging):
     """
     A file per logger, with everything else landing in `example.log`.
@@ -111,18 +102,11 @@ class ThirdParty(DebugToolbarSettings, RestFrameworkSettings):
     )
 
 
-class ProjectSettings(General, Apps, Database, Auth, Templates, Static, I18n, Logging, ThirdParty, DjangoSettings):
-    """
-    Reads `EXAMPLE_`-prefixed environment variables over the defaults above.
-
-    Nested values take the `__` delimiter, so `EXAMPLE_DATABASES__DEFAULT__URL`
-    replaces the connection.
-    """
-
-    model_config = SettingsConfigDict(env_prefix="EXAMPLE_")
-
-
-ProjectSettings()
+# `EXAMPLE_`-prefixed environment variables are read over the defaults above.
+# Nested values take the `__` delimiter, so `EXAMPLE_DATABASES__DEFAULT__URL`
+# replaces the connection. `mixins.I18n` goes in unchanged, which leaves the
+# languages to django while keeping them open to the environment.
+configure(General, Apps, Database, Auth, Templates, Static, mixins.I18n, Logging, ThirdParty, env_prefix="EXAMPLE_")
 
 # Both belong here, after the settings exist and before django reads them:
 # `django.setup()` calls `configure_logging()` and then populates the apps, so

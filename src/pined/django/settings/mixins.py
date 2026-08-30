@@ -32,6 +32,9 @@ class General(DropUnset, BaseModel):
     asgi_application: str | None = None
     site_id: int | None = None
 
+    time_zone: str | None = None
+    use_tz: bool | None = None
+
     append_slash: bool | None = None
     prepend_www: bool | None = None
     force_script_name: str | None = None
@@ -297,7 +300,7 @@ class Uploads(DropUnset, BaseModel):
 
 class I18n(DropUnset, BaseModel):
     """
-    Languages, the locale cookie and the timezone.
+    Languages and the locale cookie.
     """
 
     language_code: str | None = None
@@ -313,9 +316,6 @@ class I18n(DropUnset, BaseModel):
     language_cookie_secure: bool | None = None
     language_cookie_httponly: bool | None = None
     language_cookie_samesite: str | None = None
-
-    time_zone: str | None = None
-    use_tz: bool | None = None
 
 
 class Formats(DropUnset, BaseModel):

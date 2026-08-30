@@ -8,7 +8,7 @@ from .components import (
     TaskBackend,
     TemplateEngine,
 )
-from .settings import DjangoSettings
+from .settings import DjangoSettings, configure
 from .utils import DjangoModel, DropUnset
 
 __all__ = [
@@ -23,5 +23,6 @@ __all__ = [
     "TaskBackend",
     "TemplateEngine",
     "components",
+    "configure",
     "mixins",
 ]
