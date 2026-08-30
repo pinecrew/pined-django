@@ -359,9 +359,9 @@ class Logging(DropUnset, BaseModel):
     `LOGGING`, assembled from the parts a project actually varies.
 
     Every entry of `log_files` gets a rotating handler of its own, and
-    the logger it is keyed by writes there and nowhere else. Only
-    `logs_root` and `log_level` reach django as settings of their own;
-    the rest are inputs to `LOGGING` and stay out of the module.
+    the logger it is keyed by writes there and nowhere else. The fields
+    that feed `LOGGING` land in the settings module beside it, where
+    django pays them no mind and a reader can still find them.
 
     Attributes:
         FORMATTER: Name the single formatter is registered under.
@@ -371,17 +371,6 @@ class Logging(DropUnset, BaseModel):
     FORMATTER: ClassVar[str] = "verbose"
     ROOT: ClassVar[str] = "root"
     NULL: ClassVar[str] = "null"
-    NOT_A_SETTING: ClassVar[frozenset[str]] = frozenset(
-        {
-            "log_format",
-            "log_datefmt",
-            "handler_class",
-            "handler_options",
-            "log_files",
-            "root_log_file",
-            "ignored_loggers",
-        },
-    )
 
     logs_root: pathlib.Path | None = None
     log_level: LogLevel = "INFO"

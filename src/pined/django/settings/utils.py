@@ -24,22 +24,14 @@ class DropUnset:
         KEEP_NONE: Names of the fields where `None` is a value of its
             own, and so has to reach django. Without them there would be
             no way to spell, say, a `SameSite`-less cookie.
-        NOT_A_SETTING: Names of the fields that feed another field and
-            have no business in the settings module themselves. Named
-            here rather than marked with `Field(exclude=True)`, which a
-            project silently discards by redeclaring the field.
     """
 
     KEEP_NONE: ClassVar[frozenset[str]] = frozenset()
-    NOT_A_SETTING: ClassVar[frozenset[str]] = frozenset()
 
     @model_serializer(mode="wrap")
     def _drop_unset(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
         keep = self.KEEP_NONE | {name.upper() for name in self.KEEP_NONE}
-        drop = self.NOT_A_SETTING | {name.upper() for name in self.NOT_A_SETTING}
-        return {
-            key: value for key, value in handler(self).items() if key not in drop and (value is not None or key in keep)
-        }
+        return {key: value for key, value in handler(self).items() if value is not None or key in keep}
 
 
 class DjangoModel(DropUnset, BaseModel):
