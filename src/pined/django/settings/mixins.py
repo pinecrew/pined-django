@@ -1,15 +1,17 @@
 import pathlib
 import re
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 try:
-    from pydantic import BaseModel
+    from pydantic import BaseModel, computed_field
 except ImportError as exc:
     msg = 'To use `settings`, install package with "settings" option: pined-django[settings].'
     raise ImportError(msg) from exc
 
 from . import components
 from .utils import DropUnset
+
+LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 
 class General(DropUnset, BaseModel):
@@ -238,12 +240,21 @@ class Templates(DropUnset, BaseModel):
     Attributes:
         CONTEXT_PROCESSORS: What `startproject` puts in the django
             backend's `OPTIONS`, to splat into a project's own list.
+        DJANGO_ENGINE: The whole engine `startproject` configures. Django
+            supplies `NAME`, `DIRS` and `OPTIONS` where an entry leaves
+            them out, so a project needing one of those can ask for
+            `DJANGO_ENGINE.model_copy(update={"dirs": [...]})`.
     """
 
     CONTEXT_PROCESSORS: ClassVar[tuple[str, ...]] = (
         "django.template.context_processors.request",
         "django.contrib.auth.context_processors.auth",
         "django.contrib.messages.context_processors.messages",
+    )
+    DJANGO_ENGINE: ClassVar[components.TemplateEngine] = components.TemplateEngine(
+        backend="django.template.backends.django.DjangoTemplates",
+        app_dirs=True,
+        options={"context_processors": [*CONTEXT_PROCESSORS]},
     )
 
     templates: list[components.TemplateEngine] | None = None
@@ -345,11 +356,103 @@ class Cache(DropUnset, BaseModel):
 
 class Logging(DropUnset, BaseModel):
     """
-    The `dictConfig` django hands to the logging module.
+    `LOGGING`, assembled from the parts a project actually varies.
+
+    Every entry of `log_files` gets a rotating handler of its own, and
+    the logger it is keyed by writes there and nowhere else. Only
+    `logs_root` and `log_level` reach django as settings of their own;
+    the rest are inputs to `LOGGING` and stay out of the module.
+
+    Attributes:
+        FORMATTER: Name the single formatter is registered under.
+        ROOT: Handler prefix used for `root_log_file`.
     """
 
-    logging: dict[str, Any] | None = None
+    FORMATTER: ClassVar[str] = "verbose"
+    ROOT: ClassVar[str] = "root"
+    NULL: ClassVar[str] = "null"
+    NOT_A_SETTING: ClassVar[frozenset[str]] = frozenset(
+        {
+            "log_format",
+            "log_datefmt",
+            "handler_class",
+            "handler_options",
+            "log_files",
+            "root_log_file",
+            "ignored_loggers",
+        },
+    )
+
+    logs_root: pathlib.Path | None = None
+    log_level: LogLevel = "INFO"
     logging_config: str | None = None
+
+    log_format: str = "{levelname} {asctime} {funcName} {message}"
+    log_datefmt: str = "%Y-%m-%d %H:%M:%S %z"
+
+    handler_class: str = "logging.handlers.TimedRotatingFileHandler"
+    handler_options: dict[str, Any] = {"when": "midnight", "backupCount": 10}
+    """Keys of the chosen handler class, `maxBytes` and friends included."""
+
+    log_files: dict[str, str] = {}
+    """Logger name to the file it writes, e.g. `{"myapp.api": "api.log"}`."""
+    root_log_file: str | None = None
+    ignored_loggers: list[str] = []
+    """Loggers to silence, handed a `NullHandler` of their own."""
+
+    def _handler_name(self, logger: str) -> str:
+        return f"{logger}_file"
+
+    @computed_field
+    def logging(self) -> dict[str, Any] | None:
+        """
+        Builds the `dictConfig` out of the fields above.
+
+        Returns:
+            `None` while `logs_root` is unset, which leaves django's own
+            logging configuration alone.
+        """
+
+        if not self.logs_root:
+            return None
+
+        # `dictConfig` opens every file as it builds the handler, so the
+        # directory has to be there by then.
+        self.logs_root.mkdir(parents=True, exist_ok=True)
+
+        files = self.log_files | ({self.ROOT: self.root_log_file} if self.root_log_file else {})
+        config: dict[str, Any] = {
+            "version": 1,
+            "disable_existing_loggers": False,
+            "formatters": {
+                self.FORMATTER: {"style": "{", "format": self.log_format, "datefmt": self.log_datefmt},
+            },
+            "handlers": {
+                **({self.NULL: {"class": "logging.NullHandler"}} if self.ignored_loggers else {}),
+                **{
+                    self._handler_name(logger): {
+                        "class": self.handler_class,
+                        "level": self.log_level,
+                        "formatter": self.FORMATTER,
+                        "filename": self.logs_root / filename,
+                        **self.handler_options,
+                    }
+                    for logger, filename in files.items()
+                },
+            },
+            "loggers": {
+                **{
+                    logger: {"handlers": [self._handler_name(logger)], "level": self.log_level, "propagate": False}
+                    for logger in self.log_files
+                },
+                **{logger: {"handlers": [self.NULL], "propagate": False} for logger in self.ignored_loggers},
+            },
+        }
+
+        if self.root_log_file:
+            config["root"] = {"handlers": [self._handler_name(self.ROOT)], "level": self.log_level}
+
+        return config
 
 
 class Messages(DropUnset, BaseModel):

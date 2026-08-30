@@ -1,0 +1,113 @@
+"""
+A settings module built out of `pined.django.settings`.
+
+Run anything against it with `DJANGO_SETTINGS_MODULE=examples.settings`.
+
+One class per concern, each carrying only what this project changes.
+Everything the mixins declare and nobody overrides stays unset, so django
+keeps its own default for it.
+"""
+
+import logging
+import pathlib
+
+from pydantic_settings import SettingsConfigDict
+
+from pined.django.logging import Logger
+from pined.django.settings import DjangoSettings, components, mixins
+from pined.django.settings.admin import change_admin_site
+
+BASE_DIR = pathlib.Path(__file__).resolve().parent
+
+
+class General(mixins.General):
+    """
+    What the project is, and where its entry points live.
+    """
+
+    secret_key: str = "django-insecure-example"
+    root_urlconf: str = "examples.urls"
+
+
+class Apps(mixins.Apps):
+    """
+    Django's own apps and middleware, plus this project's.
+    """
+
+    installed_apps: list[str] = [*mixins.Apps.CONTRIB_APPS, "pined.django"]
+    middleware: list[str] = [*mixins.Apps.CONTRIB_MIDDLEWARE]
+
+
+class Database(mixins.Database):
+    """
+    One sqlite file, next to this module.
+    """
+
+    databases: components.Databases = components.Databases(
+        default=components.Database(url=f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),
+    )
+
+
+class Auth(mixins.Auth):
+    """
+    Django's stock password validators, unchanged.
+    """
+
+    auth_password_validators: list[components.PasswordValidator] = list(mixins.Auth.PASSWORD_VALIDATORS)
+
+
+class Templates(mixins.Templates):
+    """
+    The engine `startproject` configures, unchanged.
+    """
+
+    templates: list[components.TemplateEngine] = [mixins.Templates.DJANGO_ENGINE]
+
+
+class Static(mixins.Static):
+    """
+    Static files, collected next to this module.
+    """
+
+    static_url: str = "static/"
+    static_root: pathlib.Path = BASE_DIR / "static"
+
+
+class I18n(mixins.I18n):
+    """
+    The timezone; the language stays at django's default.
+    """
+
+    time_zone: str = "Etc/UTC"
+
+
+class Logging(mixins.Logging):
+    """
+    A file per logger, with everything else landing in `example.log`.
+    """
+
+    logs_root: pathlib.Path = BASE_DIR / "logs"
+    log_level: mixins.LogLevel = "DEBUG"
+    log_files: dict[str, str] = {"examples.web": "web.log", "examples.api": "api.log"}
+    root_log_file: str = "example.log"
+    ignored_loggers: list[str] = ["PIL"]
+
+
+class ProjectSettings(General, Apps, Database, Auth, Templates, Static, I18n, Logging, DjangoSettings):
+    """
+    Reads `EXAMPLE_`-prefixed environment variables over the defaults above.
+
+    Nested values take the `__` delimiter, so `EXAMPLE_DATABASES__DEFAULT__URL`
+    replaces the connection.
+    """
+
+    model_config = SettingsConfigDict(env_prefix="EXAMPLE_")
+
+
+ProjectSettings()
+
+# Both belong here, after the settings exist and before django reads them:
+# `django.setup()` calls `configure_logging()` and then populates the apps, so
+# a logger class installed later would not reach the loggers django builds.
+logging.setLoggerClass(Logger)
+change_admin_site({"auth": ("User", "Group")})

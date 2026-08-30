@@ -1,4 +1,4 @@
-from . import mixins
+from . import components, mixins
 from .components import (
     Cache,
     Database,
@@ -22,5 +22,6 @@ __all__ = [
     "Storage",
     "TaskBackend",
     "TemplateEngine",
+    "components",
     "mixins",
 ]
