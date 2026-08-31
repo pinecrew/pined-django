@@ -361,7 +361,7 @@ instantiating a class built by hand fills nothing.
 | `Session`   | the session backend and its cookie                                        |
 | `Csrf`      | CSRF protection and its cookie                                            |
 | `Security`  | `SecurityMiddleware` headers, SSL, proxy headers                          |
-| `Email`     | the mail backend and the addresses Django sends from                      |
+| `Email`     | `MAILERS`, the mail backend and the addresses Django sends from           |
 | `Templates` | `TEMPLATES`, `FORM_RENDERER`                                              |
 | `Static`    | static and media files, `STORAGES`                                        |
 | `Uploads`   | limits and permissions for incoming files                                 |
@@ -370,12 +370,13 @@ instantiating a class built by hand fills nothing.
 | `Cache`     | `CACHES` and the caching middleware                                       |
 | `Logging`   | `LOGGING`, assembled from parts                                           |
 | `Messages`  | `django.contrib.messages`                                                 |
-| `Tasks`     | `TASKS` (introduced in Django 6.0)                                        |
+| `Tasks`     | `TASKS` (new in Django 6.0)                                               |
 | `Testing`   | the test runner and what it loads                                         |
 
 Together they cover every setting in Django's `global_settings`, plus the ones
 that have no default there at all — `ROOT_URLCONF`, `ASGI_APPLICATION`,
-`SITE_ID`, `MESSAGE_LEVEL` and `MESSAGE_TAGS`, which stay absent unless set.
+`SITE_ID`, `MESSAGE_LEVEL`, `MESSAGE_TAGS`, `EMAIL_FILE_PATH` and `MAILERS`,
+which stay absent unless set.
 
 Take only what the project varies. A mixin passed to `configure` unchanged still
 leaves its settings open to the environment, which is often reason enough to
@@ -410,11 +411,31 @@ Settings with structure get a model instead of a raw dict:
 | `PasswordValidator` | `AUTH_PASSWORD_VALIDATORS`         |
 | `Cache`             | `CACHES`                           |
 | `Storage`           | `STORAGES`                         |
-| `TaskBackend`       | `TASKS`                            |
+| `Mailer`            | `MAILERS` (new in Django 6.1)      |
+| `TaskBackend`       | `TASKS` (new in Django 6.0)        |
 
 `Database` hands its URL to
 [`dj-database-url`](https://github.com/jazzband/dj-database-url), which is
 where the syntax comes from.
+
+Django 6.1 added `MAILERS` to replace the `EMAIL_*` backend settings, which
+Django 7.0 removes. `Mailer` is one entry of it — one per sender, and `options`
+takes the backend's own keys, which for smtp are the settings it supersedes,
+lower-cased and unprefixed:
+
+```python
+class Email(mixins.Email):
+    mailers: dict[str, components.Mailer] = {
+        "default": components.Mailer(
+            backend="django.core.mail.backends.smtp.EmailBackend",
+            options={"host": "smtp.example.net", "use_tls": True},
+        ),
+        "newsletters": components.Mailer(
+            backend="django.core.mail.backends.console.EmailBackend",
+        ),
+    }
+    default_from_email: str = "noreply@example.net"
+```
 
 ```python
 class Cache(mixins.Cache):
