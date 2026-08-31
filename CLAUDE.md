@@ -24,6 +24,7 @@
   - `Raises` if there are some specific Exceptions in some specific cases, that call site
     should know and care about
   - `Attributes` for describing class attributes
+  - `Note` for an aside that isn't part of the main description
   - Do not write both `Attributes` on class and `Args` in `__init__` method. Docstring
     with `Args` in `__init__` is preferable.
 - Never write type hints in docstrings, use python typing for that.
