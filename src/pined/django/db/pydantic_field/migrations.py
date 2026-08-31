@@ -50,9 +50,17 @@ def pydantic_expression[T: type](
     cls: T | None = None, *, path="pined.django.db.migrations"
 ) -> type[DataclassInstance] | Callable[[T], type[DataclassInstance]]:
     """
-    These are re-exported from `pined.django.db.migrations`, and generated migrations
-    should import them from there. `AlterPydantic` can say so in its class body,
-    but `F`/`P`/`R` cannot due to `@dataclass` resolving of annotations.
+    Turns `cls` into a migration expression.
+
+    Each is a frozen, slotted dataclass claiming `path` as its module, so
+    the migrations django generates import it from the public path rather
+    than from here. `AlterPydantic` says as much in its own class body;
+    `F`/`P`/`R` cannot, since `@dataclass` then resolves their annotations
+    against a module that is not in `sys.modules` yet.
+
+    Args:
+        cls: Class to convert. Left out when `path` is passed instead.
+        path: Module the expression reports as its own.
     """
 
     def deco(cls: T) -> type[DataclassInstance]:

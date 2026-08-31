@@ -86,7 +86,7 @@ def change_admin_site(admin_app_order: dict[str, Sequence[str]]) -> None:
         And "videos" app will come after "books" app with default order of models.
 
         >>> ...
-        >>> ProjectSettings()
+        >>> configure(General, Apps, Database)
         >>>
         >>> admin_order = {
         >>>     "media": ("Artist", "Album", "Song"),

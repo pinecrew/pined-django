@@ -1,15 +1,48 @@
 [project]
 name = "pined-django"
 version = "0.1.0"
-description = "Add your description here"
+description = "The missing pieces of Django, for perfectionists with deadlines"
 readme = "README.md"
 authors = [
-    { name = "citrux", email = "369565@gmail.com" }
+    { name = "citrux", email = "369565@gmail.com" },
+    { name = "illaech", email = "illaech@gmail.com" }
 ]
 requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = [
+    "django",
+    "settings",
+    "pydantic",
+    "management-commands",
+    "migrations",
+    "admin",
+    "logging",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Web Environment",
+    "Framework :: Django",
+    "Framework :: Django :: 5.2",
+    "Framework :: Django :: 6.0",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
 dependencies = [
     "django>=5.2",
 ]
+
+[project.urls]
+Homepage = "https://github.com/pinecrew/pined-django"
+Repository = "https://github.com/pinecrew/pined-django"
+Issues = "https://github.com/pinecrew/pined-django/issues"
 
 [project.optional-dependencies]
 pydantic-field = [

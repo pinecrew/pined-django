@@ -16,7 +16,7 @@ class Logger(logging.Logger):
     is the place:
 
     ```
-    ProjectSettings()
+    configure(General, Apps, Database)
     logging.setLoggerClass(Logger)
     ```
     """
