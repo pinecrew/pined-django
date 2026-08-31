@@ -77,10 +77,10 @@ class R:
     old_name: str
 
 
-# These are re-exported from `pined.django.db.models`, and generated migrations
+# These are re-exported from `pined.django.db.migrations`, and generated migrations
 # should import them from there. `AlterPydantic` can say so in its class body,
 # but `F`/`P`/`R` cannot due to `@dataclass` resolving of annotations.
-F.__module__ = P.__module__ = R.__module__ = "pined.django.db.models"
+F.__module__ = P.__module__ = R.__module__ = "pined.django.db.migrations"
 
 
 class AlterPydantic(Operation):
@@ -96,7 +96,7 @@ class AlterPydantic(Operation):
     and worked examples.
     """
 
-    __module__ = "pined.django.db.models"
+    __module__ = "pined.django.db.migrations"
 
     reduces_to_sql = False  # doesn't run in sqlmigrate
     reversible = True  # can roll back to the state before this operation

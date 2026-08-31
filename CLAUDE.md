@@ -1,15 +1,5 @@
 # pined-django
 
-## Writing for humans
-
-When writing something intended for human consumption (e.g., comment, commit
-message) use as few words as possible. Pick every word meticulously to reduce
-the volume to a strict minimum. Be to the point. Less is more.
-
-Take the reader's context into account: they have the code and nothing else.
-What was discussed, tried, or rejected on the way to a decision is not theirs
-to know — keep the reason, drop the history.
-
 ## Docstring style
 
 - Never write a one-line docstring. Even a short summary gets the block
