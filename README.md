@@ -589,7 +589,7 @@ autodetector that notices a Pydantic model changing shape and writes
 `AlterPydantic`. They are what `"pined.django"` in `INSTALLED_APPS` provides,
 and they fall through to Django's own commands when `pydantic` is not installed.
 
-Each field's schema versions are kept in a `_schema_<Model>__<field>.json`
+Each field's schema versions are kept in a `_schema_<model>__<field>.json`
 beside that app's migrations, keyed by hash. It is how an old shape and a new
 one can both be reconstructed later, so commit it along with the migration.
 

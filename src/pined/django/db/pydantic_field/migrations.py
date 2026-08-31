@@ -745,7 +745,11 @@ class PydanticAwareAutodetector(MigrationAutodetector):
             override_fields=override_fields,
         )
         if not self.questioner.dry_run:
-            manager = SchemaManager(app_label, model_name, name)
+            # `operation.model_name`, not `model_name`: the schema file has to
+            # land under the name `_process_database` will look it up by, and
+            # that one comes off a lower-cased `model._meta.model_name`. A
+            # `CreateModel` hands its name over in camel case.
+            manager = SchemaManager(app_label, operation.model_name, name)
             manager.ensure_version(schema_hash, model)
 
         # in theory, we can add dependency on field creation
