@@ -4,7 +4,7 @@ import ast
 import contextlib
 import json
 import sys
-from dataclasses import dataclass
+from dataclasses import MISSING, dataclass, fields
 from typing import TYPE_CHECKING, cast, dataclass_transform, overload
 
 import pydantic
@@ -35,6 +35,25 @@ if TYPE_CHECKING:
         ) -> Mapping[Any, Any] | Sequence[Any] | None: ...
 
 
+def _deconstruct(self: DataclassInstance) -> tuple[str, list[Any], dict[str, Any]]:
+    """
+    Serialize the expression the way django's migration writer expects.
+
+    Django knows nothing about dataclasses, so without this an
+    expression sitting in an `AlterPydantic` cannot be written back
+    out — `squashmigrations` and every other rewrite would refuse the
+    migration. Fields go out positionally, with trailing ones left off
+    while they still hold their default, so `F("x")` comes back as
+    `F('x')` rather than `F('x', None)`.
+    """
+
+    declared = fields(self)
+    args = [getattr(self, f.name) for f in declared]
+    while args and (default := declared[len(args) - 1].default) is not MISSING and args[-1] == default:
+        args.pop()
+    return f"{type(self).__module__}.{type(self).__name__}", args, {}
+
+
 @overload
 def pydantic_expression[T: type](cls: T, *, path: str = "pined.django.db.migrations") -> type[DataclassInstance]: ...
 
@@ -58,14 +77,21 @@ def pydantic_expression[T: type](
     `F`/`P`/`R` cannot, since `@dataclass` then resolves their annotations
     against a module that is not in `sys.modules` yet.
 
+    Each also gets a `deconstruct`, which is what django's migration
+    writer looks for to serialize a value it has no serializer of its
+    own for.
+
     Args:
         cls: Class to convert. Left out when `path` is passed instead.
         path: Module the expression reports as its own.
     """
 
     def deco(cls: T) -> type[DataclassInstance]:
+        # `slots=True` hands back a new class object, so anything set on it
+        # has to be set on the one that comes out.
         c = dataclass(cls, frozen=True, slots=True, eq=False)
         c.__module__ = path
+        c.deconstruct = _deconstruct
         return c
 
     if cls is not None:
@@ -296,12 +322,6 @@ class AlterPydantic(Operation):
         model_state = state.models[app_label, self.model_name]
         field = model_state.fields[self.name]
         field._schema_hash = self.schema_hash
-        state.reload_model(app_label, self.model_name)
-
-    def state_backwards(self, app_label: str, state: ProjectState) -> None:
-        model_state = state.models[app_label, self.model_name]
-        field = model_state.fields[self.name]
-        field._schema_hash = self.previous_schema_hash
         state.reload_model(app_label, self.model_name)
 
     def database_forwards(
