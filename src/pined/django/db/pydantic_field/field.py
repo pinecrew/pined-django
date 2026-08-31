@@ -21,12 +21,14 @@ except ImportError as exc:
     msg = 'To use PydanticField, install package with "pydantic-field" option: pined-django[pydantic-field].'
     raise ImportError(msg) from exc
 
+from .checks import check_model
 from .schema import SchemaManager
 
 if TYPE_CHECKING:
     import json
     from collections.abc import Callable, Sequence
 
+    from django.core.checks import CheckMessage
     from django.db.backends.base.base import BaseDatabaseWrapper
     from django.db.models import Expression
 
@@ -75,6 +77,17 @@ class PydanticField[T: pydantic.BaseModel](models.JSONField):
         super().__init__(verbose_name, name, encoder, decoder, default=default, **kwargs)
         self._pydantic_model = model
         self._schema_hash: str | None = None
+
+    def check(self, **kwargs) -> list[CheckMessage]:
+        """
+        Run `JSONField`'s own checks, then those for `inner_model`.
+
+        Reports aliases and reference cycles in the Pydantic model: both
+        pass a field declaration just fine and only fall apart later, at
+        migration time.
+        """
+
+        return [*super().check(**kwargs), *check_model(self.inner_model, self)]
 
     def from_db_value(self, value: str | None, expression: Expression, connection: BaseDatabaseWrapper) -> None | T:
         """

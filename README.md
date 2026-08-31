@@ -191,6 +191,21 @@ migration back does the same in reverse. The schemas are written into the
 `migrations` directory, since they are part of the migration — commit them with
 it.
 
+Two shapes of Pydantic model do not survive that round trip, and `manage.py
+check` says so rather than letting a migration find out:
+
+```
+$ python manage.py check
+myapp.Options.email: (pined.django.E001) Pydantic field 'EmailSettings.host' has an alias.
+myapp.Options.tree: (pined.django.E002) Pydantic model 'Node' has a reference cycle: Node -> child -> Node.
+```
+
+A value is dumped by field name while the recorded schema names that same field
+by its alias, so data and schema disagree; and a schema referring to itself
+cannot be rebuilt into the historical model an `AlterPydantic` works against.
+Both checks look through nested models as well. Where either shape is
+unavoidable, a plain `JSONField` still takes the data.
+
 ### Management commands
 
 Three commands for the part of a deployment that lives outside Django: the
@@ -563,6 +578,9 @@ Declared without a `default`, the field tries to instantiate `model` with no
 arguments. Where every field of the model has a default of its own that
 succeeds, and `model` becomes the field's default factory. Otherwise the field
 is left without a default, exactly as a bare `JSONField` would be.
+
+`model` is checked at `manage.py check` time: an aliased field anywhere in it
+raises `pined.django.E001`, a reference cycle `pined.django.E002`.
 
 ### `pined.django.db.migrations`
 
