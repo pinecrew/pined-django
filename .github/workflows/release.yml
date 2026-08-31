@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    # `v1.2.3`, and prereleases like `v1.2.3rc1`. The tag is the version.
+    tags: ["v*"]
+
+concurrency:
+  # Not `cancel-in-progress`: an upload interrupted halfway leaves a release
+  # half-published, and there is nothing to gain by racing a second run of the
+  # same tag.
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # The whole matrix, on this exact tag. Nothing reaches PyPI otherwise.
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      # Trusted publishing: PyPI verifies this workflow's own identity, so
+      # there is no token to keep anywhere. It also signs the attestations
+      # uploaded alongside the files.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.14"
+      # The version comes from the tag, and only from the tag — `--frozen`
+      # keeps `uv` from re-locking on the way. `uv version` rejects anything
+      # that is not a PEP 440 version, so a tag like `v1.2-final` fails here
+      # rather than at the upload. The tag reaches this through the
+      # environment, never interpolated into the script.
+      - name: Version from ${{ github.ref_name }}
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          uv version --frozen "${TAG#v}"
+          # Read back rather than reuse the tag: PEP 440 normalizes, so
+          # `v1.2.3-rc1` becomes `1.2.3rc1` and names the files accordingly.
+          echo "version=$(uv version --short)" >> "$GITHUB_OUTPUT"
+      - run: uv build
+      - name: The artifacts carry the tag's version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          ls -l dist/
+          test -f "dist/pined_django-${VERSION}.tar.gz"
+          test -f "dist/pined_django-${VERSION}-py3-none-any.whl"
+      # `--check-url` skips a file the index already holds, so re-running a
+      # partly-finished upload finishes it instead of failing on it.
+      - name: Publish to PyPI
+        run: >
+          uv publish
+          --trusted-publishing always
+          --check-url https://pypi.org/simple/

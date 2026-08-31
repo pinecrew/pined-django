@@ -1,5 +1,7 @@
 [project]
 name = "pined-django"
+# What is released comes from the tag: `.github/workflows/release.yml` writes
+# the version before it builds. This one is what a local build gets.
 version = "0.1.0"
 description = "The missing pieces of Django, for perfectionists with deadlines"
 readme = "README.md"

@@ -4,9 +4,14 @@ on:
   push:
     branches: [main]
   pull_request:
+  # `release.yml` calls this before it publishes anything.
+  workflow_call:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # A literal prefix rather than `github.workflow`: called from another
+  # workflow, that expands to the *caller's* name, which would put this run in
+  # the same group as the run waiting on it — and cancel the one it belongs to.
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

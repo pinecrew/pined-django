@@ -802,41 +802,6 @@ Walks `path` through dicts by key, lists by index and objects by attribute, in
 any combination, returning `default` at the first step that doesn't resolve. For
 payloads whose shape you don't control.
 
-## Development
-
-```bash
-uv sync --all-extras
-uv run poe fix          # ruff format + ruff check --fix
-uv run poe fix --check  # no writes
-uv run poe test         # pytest
-uv run poe cov          # pytest, with a coverage report
-```
-
-`examples/` is a settings module that runs:
-
-```bash
-DJANGO_SETTINGS_MODULE=examples.settings python -m django check
-```
-
-`tests/testapp/` is a django app whose migration chain walks a
-`PydanticField` through five versions of its pydantic model, one
-`AlterPydantic` feature per migration. Each schema the chain references is
-committed beside it as `_schema_<model>__<field>.json`, and the shapes
-those hashes stand for are kept as classes in `tests/testapp/schema_history.py`
-— a pydantic release that changes `model_json_schema()` fails there, with
-the fix being to regenerate both.
-
-`tests/no_pydantic/` is the install with neither extra: the commands falling
-through to django's own, and every module behind an extra naming the extra it
-wants. It skips itself wherever `pydantic` is importable, and `pydantic` only
-ever arrives with an extra, so:
-
-```bash
-uv sync                 # neither extra
-uv run poe test-bare
-uv sync --all-extras    # back to the usual one
-```
-
 ## License
 
 MIT. See [LICENSE](LICENSE).
