@@ -27,36 +27,6 @@ class DjangoSettings(DropUnset, BaseSettings):
         extra="ignore",
     )
 
-    def __init__(self, _offset: int = 2, **values) -> None:
-        """
-        Reads the settings and hands them to the module that asked.
-
-        Args:
-            _offset: Where the settings module sits, for `_set_globals`.
-                Anything calling on a module's behalf owes it a frame.
-        """
-
-        super().__init__(**values)
-        self._set_globals(_offset)
-
-    def _set_globals(self, offset: int = 2) -> None:
-        """
-        Fills the globals of the calling module with the model's contents.
-
-        Args:
-            offset: How far up the stack the settings module sits. The
-                default of 2 counts a plain instantiation:
-
-                ```
-                0. DjangoSettings._set_globals
-                1. DjangoSettings.__init__
-                2. <settings module>
-                ```
-        """
-
-        settings_module_frame = sys._getframe(offset)
-        settings_module_frame.f_locals.update(self.model_dump(by_alias=True))
-
 
 def configure(*parts: type[BaseModel], **config: Unpack[SettingsConfigDict]) -> DjangoSettings:
     """
@@ -80,7 +50,17 @@ def configure(*parts: type[BaseModel], **config: Unpack[SettingsConfigDict]) -> 
     """
 
     namespace = {"model_config": SettingsConfigDict(**config)}
-    project_settings: type[DjangoSettings] = type("ProjectSettings", (*parts, DjangoSettings), namespace)
+    # A part that is already a `DjangoSettings` is the base; naming it twice
+    # would re-apply its own `model_config` over whatever the part set.
+    bases = parts if any(issubclass(part, DjangoSettings) for part in parts) else (*parts, DjangoSettings)
+    settings_cls: type[DjangoSettings] = type("ProjectSettings", bases, namespace)
+    project_settings = settings_cls()
 
-    # One frame more than a plain instantiation: this one.
-    return project_settings(_offset=3)
+    # Fills the globals of the calling module with the model's contents.
+    # Module sits one frame back up the stack:
+    # 0. configure()
+    # 1. <settings module>
+    settings_module_frame = sys._getframe(1)
+    settings_module_frame.f_locals.update(project_settings.model_dump(by_alias=True))
+
+    return project_settings
