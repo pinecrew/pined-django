@@ -5,7 +5,7 @@ import contextlib
 import json
 import sys
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, dataclass_transform, overload
 
 import pydantic
 
@@ -23,6 +23,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, MutableMapping, Sequence
     from typing import Any, Literal, Protocol
 
+    from _typeshed import DataclassInstance
+
     from django.db.backends.base.base import BaseDatabaseWrapper
     from django.db.backends.base.schema import BaseDatabaseSchemaEditor
     from django.db.migrations.state import ProjectState
@@ -33,7 +35,38 @@ if TYPE_CHECKING:
         ) -> Mapping[Any, Any] | Sequence[Any] | None: ...
 
 
-@dataclass(frozen=True, slots=True, eq=False)
+@overload
+def pydantic_expression[T: type](cls: T, *, path: str = "pined.django.db.migrations") -> type[DataclassInstance]: ...
+
+
+@overload
+def pydantic_expression[T: type](
+    cls: None, *, path: str = "pined.django.db.migrations"
+) -> Callable[[T], type[DataclassInstance]]: ...
+
+
+@dataclass_transform()
+def pydantic_expression[T: type](
+    cls: T | None = None, *, path="pined.django.db.migrations"
+) -> type[DataclassInstance] | Callable[[T], type[DataclassInstance]]:
+    """
+    These are re-exported from `pined.django.db.migrations`, and generated migrations
+    should import them from there. `AlterPydantic` can say so in its class body,
+    but `F`/`P`/`R` cannot due to `@dataclass` resolving of annotations.
+    """
+
+    def deco(cls: T) -> type[DataclassInstance]:
+        c = dataclass(cls, frozen=True, slots=True, eq=False)
+        c.__module__ = path
+        return c
+
+    if cls is not None:
+        return deco(cls)
+
+    return deco
+
+
+@pydantic_expression
 class F:
     """
     Pull a default value from another field on the same Django model.
@@ -50,7 +83,7 @@ class F:
     default_value: Any = None
 
 
-@dataclass(frozen=True, slots=True, eq=False)
+@pydantic_expression
 class P:
     """
     Copy a value from another field of the same Pydantic model, once
@@ -64,7 +97,7 @@ class P:
     field_name: str
 
 
-@dataclass(frozen=True, slots=True, eq=False)
+@pydantic_expression
 class R:
     """
     Rename a field of the Pydantic model, keeping its stored value.
@@ -75,12 +108,6 @@ class R:
     """
 
     old_name: str
-
-
-# These are re-exported from `pined.django.db.migrations`, and generated migrations
-# should import them from there. `AlterPydantic` can say so in its class body,
-# but `F`/`P`/`R` cannot due to `@dataclass` resolving of annotations.
-F.__module__ = P.__module__ = R.__module__ = "pined.django.db.migrations"
 
 
 class AlterPydantic(Operation):
