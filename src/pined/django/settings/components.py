@@ -89,6 +89,18 @@ class Storage(DjangoModel):
     options: dict[str, Any] | None = None
 
 
+class Mailer(DjangoModel):
+    """
+    One entry of `MAILERS` (added in django 6.1).
+
+    Keys of `options` belong to the backend; the smtp one takes the
+    `EMAIL_*` settings it replaces, lower-cased and unprefixed.
+    """
+
+    backend: str
+    options: dict[str, Any] | None = None
+
+
 class TaskBackend(DjangoModel):
     """
     One entry of `TASKS` (added in django 6.0).

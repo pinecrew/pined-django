@@ -216,9 +216,16 @@ class Security(DropUnset, BaseModel):
 class Email(DropUnset, BaseModel):
     """
     The mail backend and the addresses django sends from.
+
+    `mailers` arrived in django 6.1 to replace the `email_*` backend
+    settings below it, and 7.0 removes those. The addresses,
+    `email_subject_prefix` and `email_use_localtime` are staying.
     """
 
+    mailers: dict[str, components.Mailer] | None = None
+
     email_backend: str | None = None
+    email_file_path: str | pathlib.Path | None = None
     email_host: str | None = None
     email_port: int | None = None
     email_host_user: str | None = None
@@ -238,7 +245,7 @@ class Email(DropUnset, BaseModel):
 
 class Templates(DropUnset, BaseModel):
     """
-    `TEMPLATES` and the form renderer.
+    `TEMPLATES`, the form renderer and the label of a blank choice.
 
     Attributes:
         CONTEXT_PROCESSORS: What `startproject` puts in the django
@@ -262,6 +269,9 @@ class Templates(DropUnset, BaseModel):
 
     templates: list[components.TemplateEngine] | None = None
     form_renderer: str | None = None
+
+    use_blank_choice_dash: bool | None = None
+    """Restores the old `---------` blank label, which django 7.0 drops."""
 
 
 class Static(DropUnset, BaseModel):
