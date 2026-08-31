@@ -53,6 +53,27 @@ def iter_nested_models(annotation: Any) -> Iterator[type[pydantic.BaseModel]]:
         yield from iter_nested_models(arg)
 
 
+def resolved_fields(model: type[pydantic.BaseModel]) -> dict[str, pydantic.fields.FieldInfo]:
+    """
+    `model`'s fields, with forward references resolved where they can be.
+
+    A model naming one that is defined further down the module stays
+    incomplete until something rebuilds it, and until then its annotations
+    are `ForwardRef`s — nothing a walk can follow into. Checks run once
+    every module is imported, so the rebuild is free by the time it
+    happens here.
+
+    Args:
+        model: The model to take the fields off.
+
+    Returns:
+        The field name to `FieldInfo` mapping pydantic keeps.
+    """
+
+    model.model_rebuild(raise_errors=False)
+    return model.model_fields
+
+
 def iter_aliased_fields(model: type[pydantic.BaseModel]) -> Iterator[tuple[type[pydantic.BaseModel], str]]:
     """
     Yield `(owner, field_name)` for every aliased field reachable from `model`.
@@ -74,7 +95,7 @@ def iter_aliased_fields(model: type[pydantic.BaseModel]) -> Iterator[tuple[type[
             continue
         visited.add(current)
 
-        for field_name, info in current.model_fields.items():
+        for field_name, info in resolved_fields(current).items():
             if info.alias or info.validation_alias or info.serialization_alias:
                 yield current, field_name
             queue.extend(iter_nested_models(info.annotation))
@@ -103,7 +124,7 @@ def find_reference_cycle(
     path = path or (model.__name__,)
     seen = (*seen, model)
 
-    for field_name, info in model.model_fields.items():
+    for field_name, info in resolved_fields(model).items():
         for nested in iter_nested_models(info.annotation):
             branch = (*path, field_name, nested.__name__)
             if nested in seen:

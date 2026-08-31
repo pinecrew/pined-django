@@ -32,6 +32,7 @@ classifiers = [
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Internet :: WWW/HTTP",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
@@ -57,11 +58,14 @@ settings = [
 ]
 
 [dependency-groups]
+# No `pydantic` here: both extras require it, so `uv sync` on its own is the
+# install with neither — which is what `test-bare` needs.
 dev = [
     "django-stubs>=6.0.5",
+    "django-test-migrations>=1.6.0",
     "poethepoet>=0.48.0",
-    "pydantic>=2.13.4",
     "pytest>=9.1.1",
+    "pytest-cov>=7.0.0",
     "pytest-django>=4.12.0",
     "ruff>=0.15.21",
 ]
@@ -102,8 +106,41 @@ ignore = [
 [tool.ruff.lint.flake8-unused-arguments]
 ignore-variadic-names = true
 
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PLR2004"]  # magic values are the point of an assert
+"tests/testapp/models.py" = ["DJ008"]  # nothing ever renders these
+"tests/testapp/migrations/*" = ["N999"]  # 0001_initial is not a valid module name
+
 [tool.ruff.lint.flake8-type-checking]
 runtime-evaluated-base-classes = ["pydantic.BaseModel",]
+
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tests.conf"
+# `tests.conf` is resolved before collection puts the repo on the path.
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "--strict-markers --strict-config"
+
+
+[tool.coverage.run]
+source = ["src/pined/django"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+# A ratchet, not a target: raise it when the number does.
+fail_under = 80
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "@overload",
+    "raise NotImplementedError",
+    "^\\s*\\.\\.\\.$",
+    # The "optional extra is not installed" path. Covered by the `bare` CI
+    # cell, which runs `tests/no_pydantic` without a coverage report.
+    "^\\s*except ImportError",
+]
 
 
 [tool.poe.tasks.fix]
@@ -116,6 +153,13 @@ args = [
     { name = "check", options = ["--check"], type = "boolean" },
     { name = "target", default = ".", positional = true, multiple = true }
 ]
+
+[tool.poe.tasks]
+test = "pytest"
+cov = "pytest --cov --cov-report=term-missing --cov-report=xml"
+# Wants `uv sync` rather than `uv sync --all-extras`; skips itself otherwise.
+test-bare = "pytest tests/no_pydantic --ds=tests.conf_no_pydantic"
+
 
 [tool.pyright]
 venv = ".venv"

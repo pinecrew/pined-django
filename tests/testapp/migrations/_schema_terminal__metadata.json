@@ -1,0 +1,133 @@
+{
+  "5d9b714b77a2728b": {
+    "properties": {
+      "max_backup": {
+        "default": 10,
+        "type": "integer"
+      },
+      "os_version": {
+        "default": "unknown",
+        "type": "string"
+      },
+      "region": {
+        "type": "string"
+      },
+      "update_attempts": {
+        "default": 0,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "region"
+    ],
+    "type": "object"
+  },
+  "9954de6e7538383c": {
+    "properties": {
+      "also_version": {
+        "default": "unknown",
+        "type": "string"
+      },
+      "android_version": {
+        "default": "unknown",
+        "type": "string"
+      },
+      "current_software_version": {
+        "default": "",
+        "type": "string"
+      },
+      "log_retention": {
+        "default": 7,
+        "type": "integer"
+      },
+      "max_backup": {
+        "default": 10,
+        "type": "integer"
+      },
+      "region": {
+        "type": "string"
+      },
+      "update_attempts": {
+        "default": 0,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "region"
+    ],
+    "type": "object"
+  },
+  "cf5ac43595503dd9": {
+    "properties": {
+      "also_version": {
+        "default": "unknown",
+        "type": "string"
+      },
+      "android_version": {
+        "default": "unknown",
+        "type": "string"
+      },
+      "current_software_version": {
+        "default": "",
+        "type": "string"
+      },
+      "max_backup": {
+        "default": 10,
+        "type": "integer"
+      },
+      "region": {
+        "type": "string"
+      },
+      "update_attempts": {
+        "default": 0,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "region"
+    ],
+    "type": "object"
+  },
+  "d04118555669c90f": {
+    "properties": {
+      "os_version": {
+        "default": "unknown",
+        "type": "string"
+      },
+      "update_attempts": {
+        "default": 0,
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "f6f354d12d0e9bec": {
+    "properties": {
+      "android_version": {
+        "default": "unknown",
+        "type": "string"
+      },
+      "current_software_version": {
+        "default": "",
+        "type": "string"
+      },
+      "log_retention": {
+        "default": 7,
+        "type": "integer"
+      },
+      "max_backup": {
+        "default": 10,
+        "type": "integer"
+      },
+      "region": {
+        "default": "unset",
+        "type": "string"
+      },
+      "update_attempts": {
+        "default": 0,
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  }
+}
