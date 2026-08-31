@@ -16,6 +16,11 @@ pydantic-field = [
     "pydantic>=2.13.4",
     "json-schema-to-pydantic>=0.4.11",
 ]
+settings = [
+    "dj-database-url>=3.1.2",
+    "pydantic>=2.13.4",
+    "pydantic-settings>=2.15.0",
+]
 
 [dependency-groups]
 dev = [
