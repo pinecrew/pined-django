@@ -1,8 +1,6 @@
 [project]
 name = "pined-django"
-# What is released comes from the tag: `.github/workflows/release.yml` writes
-# the version before it builds. This one is what a local build gets.
-version = "0.1.0"
+dynamic = ["version"]
 description = "The missing pieces of Django, for perfectionists with deadlines"
 readme = "README.md"
 authors = [
@@ -74,11 +72,22 @@ dev = [
 
 
 [build-system]
-requires = ["uv_build>=0.11.21,<0.12.0"]
-build-backend = "uv_build"
+# hatchling, for `hatch-vcs`: the version is whatever the tag says, and
+# `uv_build` has no dynamic version to offer.
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
 
-[tool.uv.build-backend]
-module-name = "pined.django"
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.targets.wheel]
+# `pined` is a namespace package — the distribution owns `pined.django` only.
+packages = ["src/pined"]
+
+[tool.hatch.build.targets.sdist]
+# The package and its paperwork, as `uv_build` shipped. A source distribution
+# is not a snapshot of the repository, which is what hatchling defaults to.
+only-include = ["src", "README.md", "LICENSE"]
 
 
 [tool.ruff]

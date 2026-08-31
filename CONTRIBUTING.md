@@ -47,11 +47,17 @@ Push a tag, and `pined-django` goes to PyPI:
 git tag v0.2.0 && git push origin v0.2.0
 ```
 
-The tag is the version. `.github/workflows/release.yml` writes it into
-`pyproject.toml` before building, so the version committed there only matters to
-a local `uv build`, and a prerelease needs nothing special: `v0.2.0rc1`. A tag
-that is not a PEP 440 version — `v1.2-final` — fails at that step rather than
-halfway through an upload.
+The tag is the version, and nothing in the repository repeats it: `version` is
+`dynamic`, and `hatch-vcs` reads it out of git at build time. A prerelease needs
+nothing special — `v0.2.0rc1` — and PEP 440 normalization applies, so
+`v1.2.3-rc1` builds files named `1.2.3rc1`.
+
+A build that cannot see the tag produces a development version
+(`0.1.dev38+g9c4a7ad`) instead of failing, which is what a local `uv build`
+gets and is exactly right there. In the release workflow it would be a silent
+mispublish, so the job checks out with `fetch-depth: 0` — a shallow clone
+carries no tags — and refuses to upload anything whose version carries `dev` or
+a `+local` part.
 
 The tag has to start with `v`: GitHub's tag filters document `*`, `**`, `+`, `?`
 and `!`, and nothing about character ranges, so a pattern matching a bare

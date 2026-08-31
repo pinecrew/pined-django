@@ -27,32 +27,29 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          # `hatch-vcs` reads the version out of git, and the default shallow
+          # clone arrives without the tag it would read.
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
           python-version: "3.14"
-      # The version comes from the tag, and only from the tag — `--frozen`
-      # keeps `uv` from re-locking on the way. `uv version` rejects anything
-      # that is not a PEP 440 version, so a tag like `v1.2-final` fails here
-      # rather than at the upload. The tag reaches this through the
-      # environment, never interpolated into the script.
-      - name: Version from ${{ github.ref_name }}
-        id: version
-        env:
-          TAG: ${{ github.ref_name }}
-        run: |
-          uv version --frozen "${TAG#v}"
-          # Read back rather than reuse the tag: PEP 440 normalizes, so
-          # `v1.2.3-rc1` becomes `1.2.3rc1` and names the files accordingly.
-          echo "version=$(uv version --short)" >> "$GITHUB_OUTPUT"
+      # No version to set: `pyproject.toml` declares it dynamic, and the build
+      # takes it from the tag this run was started by.
       - run: uv build
       - name: The artifacts carry the tag's version
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ github.ref_name }}
         run: |
           ls -l dist/
-          test -f "dist/pined_django-${VERSION}.tar.gz"
-          test -f "dist/pined_django-${VERSION}-py3-none-any.whl"
+          # A `dev` or `+local` version means the build could not see the tag —
+          # a shallow clone, or a tree with changes in it — and would publish
+          # something nobody asked for. PyPI rejects local versions outright.
+          if ls dist/ | grep -qE 'dev[0-9]|\+'; then
+            echo "::error::built a development version; the tag ${TAG} was not visible to the build"
+            exit 1
+          fi
       # `--check-url` skips a file the index already holds, so re-running a
       # partly-finished upload finishes it instead of failing on it.
       - name: Publish to PyPI
