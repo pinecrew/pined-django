@@ -593,6 +593,12 @@ Each field's schema versions are kept in a `_schema_<model>__<field>.json`
 beside that app's migrations, keyed by hash. It is how an old shape and a new
 one can both be reconstructed later, so commit it along with the migration.
 
+A "change of shape" is whatever changes what the model accepts: fields added,
+removed or retyped, defaults, constraints, aliases, `extra`. Renaming the model,
+rewriting its docstring, documenting a field, reordering the field declarations
+or the members of a `Literal` — none of those count, and none of them will
+rewrite a table.
+
 ```python
 AlterPydantic(
     model_name,                 # the django model, e.g. "options"
