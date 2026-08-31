@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import ast
 import contextlib
+import inspect
 import json
 import sys
-from dataclasses import MISSING, dataclass, fields
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast, dataclass_transform, overload
 
 import pydantic
@@ -42,16 +43,31 @@ def _deconstruct(self: DataclassInstance) -> tuple[str, list[Any], dict[str, Any
     Django knows nothing about dataclasses, so without this an
     expression sitting in an `AlterPydantic` cannot be written back
     out — `squashmigrations` and every other rewrite would refuse the
-    migration. Fields go out positionally, with trailing ones left off
-    while they still hold their default, so `F("x")` comes back as
-    `F('x')` rather than `F('x', None)`.
+    migration.
+
+    A field with no default goes out positionally, one with a default
+    goes out by name and only while it holds something else — so `F("x")`
+    comes back as `F('x')`, and `F("a.b", 1)` as `F('a.b',
+    default_value=1)`. Which is how django writes its own fields, and for
+    the same reason: a position is fixed when the migration is written and
+    read back years later, so an argument added anywhere but the end
+    would silently rebind every line already on disk. A name cannot.
+
+    Read off `__init__` rather than off the fields, since what has to
+    come back is a call: a `default_factory` shows up as a sentinel no
+    value equals and is written every time, and an `init=False` field
+    never appears at all.
     """
 
-    declared = fields(self)
-    args = [getattr(self, f.name) for f in declared]
-    while args and (default := declared[len(args) - 1].default) is not MISSING and args[-1] == default:
-        args.pop()
-    return f"{type(self).__module__}.{type(self).__name__}", args, {}
+    args: list[Any] = []
+    kwargs: dict[str, Any] = {}
+    for name, param in inspect.signature(type(self)).parameters.items():
+        value = getattr(self, name)
+        if param.default is param.empty and param.kind is not param.KEYWORD_ONLY:
+            args.append(value)
+        elif value != param.default:
+            kwargs[name] = value
+    return f"{type(self).__module__}.{type(self).__name__}", args, kwargs
 
 
 @overload
@@ -80,6 +96,13 @@ def pydantic_expression[T: type](
     Each also gets a `deconstruct`, which is what django's migration
     writer looks for to serialize a value it has no serializer of its
     own for.
+
+    Note:
+        `eq=False`, so they compare by identity. A frozen dataclass with
+        equality gets a `__hash__` taken over its fields, and `F`'s
+        default value is whatever the column holds — `F("extra", {})`
+        would then be unhashable. Nothing compares or hashes an
+        expression: they are read by `isinstance` and by attribute.
 
     Args:
         cls: Class to convert. Left out when `path` is passed instead.
