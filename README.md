@@ -2,6 +2,12 @@
 
 *The missing pieces of Django, for perfectionists with deadlines.*
 
+[![CI](https://github.com/pinecrew/pined-django/actions/workflows/ci.yml/badge.svg)](https://github.com/pinecrew/pined-django/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/coverallsCoverage/github/pinecrew/pined-django)](https://coveralls.io/github/pinecrew/pined-django)
+[![PyPI](https://img.shields.io/pypi/v/pined-django.svg)](https://pypi.org/project/pined-django/)
+[![Python](https://img.shields.io/pypi/pyversions/pined-django.svg)](https://pypi.org/project/pined-django/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 Django stays out of your way right up until it doesn't. Has your settings module
 grown into a thousand untyped constants? Do you re-validate a `JSONField`'s
 contents on every read? Has the start-up sequence become a pile of unrelated
@@ -802,12 +808,33 @@ payloads whose shape you don't control.
 uv sync --all-extras
 uv run poe fix          # ruff format + ruff check --fix
 uv run poe fix --check  # no writes
+uv run poe test         # pytest
+uv run poe cov          # pytest, with a coverage report
 ```
 
 `examples/` is a settings module that runs:
 
 ```bash
 DJANGO_SETTINGS_MODULE=examples.settings python -m django check
+```
+
+`tests/testapp/` is a django app whose migration chain walks a
+`PydanticField` through five versions of its pydantic model, one
+`AlterPydantic` feature per migration. Each schema the chain references is
+committed beside it as `_schema_<model>__<field>.json`, and the shapes
+those hashes stand for are kept as classes in `tests/testapp/schema_history.py`
+— a pydantic release that changes `model_json_schema()` fails there, with
+the fix being to regenerate both.
+
+`tests/no_pydantic/` is the install with neither extra: the commands falling
+through to django's own, and every module behind an extra naming the extra it
+wants. It skips itself wherever `pydantic` is importable, and `pydantic` only
+ever arrives with an extra, so:
+
+```bash
+uv sync                 # neither extra
+uv run poe test-bare
+uv sync --all-extras    # back to the usual one
 ```
 
 ## License

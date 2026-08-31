@@ -1,0 +1,31 @@
+{
+  "f6f354d12d0e9bec": {
+    "properties": {
+      "android_version": {
+        "default": "unknown",
+        "type": "string"
+      },
+      "current_software_version": {
+        "default": "",
+        "type": "string"
+      },
+      "log_retention": {
+        "default": 7,
+        "type": "integer"
+      },
+      "max_backup": {
+        "default": 10,
+        "type": "integer"
+      },
+      "region": {
+        "default": "unset",
+        "type": "string"
+      },
+      "update_attempts": {
+        "default": 0,
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  }
+}

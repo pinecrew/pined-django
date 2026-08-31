@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - run: uv sync --all-extras
+      - run: uv run --no-sync poe fix --check
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13", "3.14"]
+        django: ["5.2", "6.0", "6.1"]
+        # Marks the one cell that reports the coverage — a report per cell is
+        # nine of the same thing. The newest of each, so the number describes
+        # what the next release of either will be measured against. Adding a
+        # version above is where you would move it.
+        include:
+          - python: "3.14"
+            django: "6.1"
+            coverage: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python }}
+      - run: uv sync --all-extras
+      # The lock pins one django; the matrix wants another. `--upgrade-package`
+      # keeps it from holding on to a patch older than the python in hand —
+      # django 5.2 only supports 3.14 from 5.2.7 on.
+      - name: Install django ${{ matrix.django }}
+        run: uv pip install --upgrade-package django "django==${{ matrix.django }}.*"
+      - run: uv run --no-sync poe cov
+      - name: Report coverage
+        if: matrix.coverage
+        uses: coverallsapp/github-action@v2
+        with:
+          # `poe cov` writes cobertura, which is not the action's default.
+          file: ./coverage.xml
+          format: cobertura
+          # A cell whose tests passed is a cell that passed. Whether a
+          # coverage service was reachable, or has heard of this repo yet,
+          # is not the suite's verdict.
+          fail-on-error: false
+
+  bare:
+    name: test (no extras)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          # One python is enough: what this cell asks — which command class
+          # comes back, and what the import error says — is the same on all of
+          # them. The newest, for the same reason the coverage cell is.
+          python-version: "3.14"
+      # No extras, which is the whole point of this cell — nothing in the dev
+      # group brings `pydantic` in behind their back.
+      - run: uv sync
+      # `tests/no_pydantic` skips itself when pydantic is importable, so a
+      # leak would read as a pass. Fail on it instead, before the tests run.
+      - name: pydantic is really absent
+        run: uv run --no-sync python -c "import importlib.util,sys; sys.exit(importlib.util.find_spec('pydantic') is not None)"
+      - run: uv run --no-sync poe test-bare
