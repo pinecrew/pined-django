@@ -47,13 +47,18 @@ Issues = "https://github.com/pinecrew/pined-django/issues"
 
 [project.optional-dependencies]
 pydantic-field = [
-    "pydantic>=2.13.4",
+    # 2.11.4, not the 2.10.4 `json-schema-to-pydantic` asks for: it builds a
+    # model with `create_model(__base__=..., __config__=...)`, which pydantic
+    # refused until then. The field itself is happy from 2.10.
+    "pydantic>=2.11.4",
     "json-schema-to-pydantic>=0.4.11",
 ]
 settings = [
     "dj-database-url>=3.1.2",
-    "pydantic>=2.13.4",
-    "pydantic-settings>=2.15.0",
+    # 2.10 is where pydantic learned to resolve a PEP 695 `type` alias, which
+    # is what `Unset[T]` is; on 2.9 `UnsetType` inside it is an unknown type.
+    "pydantic>=2.10",
+    "pydantic-settings>=2.0.3",
 ]
 
 [dependency-groups]
