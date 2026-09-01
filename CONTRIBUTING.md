@@ -8,11 +8,28 @@ use it — and is what PyPI renders, so none of this belongs there.
 
 ```bash
 uv sync --all-extras
+uv run poe lint         # ruff format --check, ruff check, pyrefly — what CI runs
 uv run poe fix          # ruff format + ruff check --fix
-uv run poe fix --check  # no writes
 uv run poe test         # pytest
 uv run poe cov          # pytest, with a coverage report
 ```
+
+`lint` reports and writes nothing; `fix` writes and reports nothing. They were
+one task with a `--check` flag, which meant the checking half ran `--fix-only`
+and so exited 0 whatever it found.
+
+Pyrefly runs on the `strict` preset over `src` and `examples`, not over the
+tests: those poke at private django APIs and pass deliberately wrong arguments,
+and every one of those needs a suppression that repeats what the test's own name
+already says. Three of strict's error kinds are off, each with its reason in
+`[tool.pyrefly.errors]` — a settings part narrowing a field it inherited is how
+the library is used, `*args`/`**kwargs` are the same call ruff declines to
+annotate through `ANN002`/`ANN003`, and `implicit-any-lambda` fires on every
+lambda there is rather than on any particular one.
+
+What is left carries a `# pyrefly: ignore[rule]` and a reason: a private django
+API the autodetector hooks into, a stub missing a method every user model has.
+There are five; a sixth wants the same treatment, or a fix.
 
 `examples/` is a settings module that runs:
 

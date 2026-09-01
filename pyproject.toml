@@ -59,14 +59,21 @@ settings = [
 [dependency-groups]
 # No `pydantic` here: both extras require it, so `uv sync` on its own is the
 # install with neither — which is what `test-bare` needs.
+#
+# Pinned, unlike everything a project installs: the tools decide what a red
+# build means, and a linter or a type checker that moved on its own turns
+# every branch red at once for a reason no branch caused. What the package
+# itself depends on stays a range — that is the promise, and `test (lowest
+# direct)` is what holds it to it.
 dev = [
-    "django-stubs>=6.0.5",
-    "django-test-migrations>=1.6.0",
-    "poethepoet>=0.48.0",
-    "pytest>=9.1.1",
-    "pytest-cov>=7.0.0",
-    "pytest-django>=4.12.0",
-    "ruff>=0.15.21",
+    "django-stubs==6.1.0",
+    "django-test-migrations==1.6.0",
+    "poethepoet==0.48.0",
+    "pyrefly==1.2.0",
+    "pytest==9.1.1",
+    "pytest-cov==7.1.0",
+    "pytest-django==4.14.0",
+    "ruff==0.16.5",
 ]
 
 
@@ -98,7 +105,11 @@ show-fixes = true
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
-exclude = ["urls.py"]
+# Markdown, because ruff 0.16 started formatting the python in it and the
+# prose here does not want that: `CLAUDE.md`'s "Incorrect:" example is
+# incorrect on purpose, and the README aligns trailing comments to be read
+# rather than to be parsed.
+exclude = ["urls.py", "*.md"]
 docstring-code-line-length = 80
 
 [tool.ruff.lint]
@@ -153,16 +164,28 @@ exclude_also = [
 ]
 
 
+# Reports, and changes nothing. `fix` is the other half, and the two are kept
+# apart on purpose: one task doing both meant the checking half ran `--fix-only`
+# — which fixes rather than reports, and so exits 0 however much was wrong.
+[tool.poe.tasks.lint]
+sequence = [
+    { cmd = "ruff format --check $target" },
+    { cmd = "ruff check --no-fix $target" },
+    { cmd = "pyrefly check" },
+]
+args = [{ name = "target", default = ".", positional = true, multiple = true }]
+help = "Everything CI runs before the tests."
+
 [tool.poe.tasks.fix]
 sequence = [
-    { cmd = "ruff format ${check:+--check} $target", ignore_fail = true },
-    { cmd = "ruff check $target ${check:+--no-show-fixes --fix-only} ${check:---fix} ${unsafe:+--unsafe-fixes}" },
+    { cmd = "ruff format $target" },
+    { cmd = "ruff check --fix $target ${unsafe:+--unsafe-fixes}" },
 ]
 args = [
     { name = "unsafe", options = ["--unsafe-fixes", "--unsafe"], type = "boolean" },
-    { name = "check", options = ["--check"], type = "boolean" },
     { name = "target", default = ".", positional = true, multiple = true }
 ]
+help = "Reformats and applies what ruff can fix on its own."
 
 [tool.poe.tasks]
 test = "pytest"
@@ -171,11 +194,30 @@ cov = "pytest --cov --cov-report=term-missing --cov-report=xml"
 test-bare = "pytest tests/no_pydantic --ds=tests.conf_no_pydantic"
 
 
-[tool.pyright]
-venv = ".venv"
-venvPath = "."
-reportUnusedCallResult = false
+[tool.pyrefly]
+# What ships, and the settings module the README documents. Not the tests:
+# they poke at private django APIs and pass deliberately wrong arguments on
+# purpose, and every one of those needs a suppression that says nothing a
+# reader did not already know from the test's own name.
+project-includes = ["src", "examples"]
+# The repo root, so `examples` resolves the way `DJANGO_SETTINGS_MODULE` does.
+search-path = ["."]
+python-version = "3.12"
+# Everything the default preset checks, plus annotation completeness, override
+# validation and the implicit `Any`s.
+preset = "strict"
 
-
-[tool.ty.environment]
-root = ["."]
+[tool.pyrefly.errors]
+# A part narrowing a field it inherited is how this library is used: a mixin
+# declares `Unset[str]`, a project declares `str` and a value. Read-write
+# attributes are not meant to narrow, and these do — deliberately, because a
+# settings class is a record that is built once and read from thereafter.
+bad-override-mutable-attribute = false
+# `*args`/`**kwargs` forwarded to a django or pydantic base, which is the same
+# call the ruff config declines to annotate through `ANN002` and `ANN003`.
+# Ordinary parameters are still covered, by `ANN001` on ruff's side.
+implicit-any-parameter = false
+# Pyrefly does not read a lambda's parameter type off the call it is passed
+# to, so this fires on every lambda there is — `["b", "a"].sort(key=lambda n:
+# n.upper())` included. That is a ban on lambdas, not a finding.
+implicit-any-lambda = false
