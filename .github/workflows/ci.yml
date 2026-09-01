@@ -23,6 +23,12 @@ jobs:
         with:
           enable-cache: true
           python-version: "3.12"
+          # A key per job. Without one they share it, every job of a python
+          # racing the others to save the same entry — eight
+          # "unable to reserve cache" out of eleven, whenever the key is new.
+          # It is new whenever `pyproject.toml` changes, which since the lock
+          # stopped being tracked is what the key is taken over.
+          cache-suffix: lint
       - run: uv sync --all-extras
       - run: uv run --no-sync poe lint
 
@@ -47,6 +53,7 @@ jobs:
         with:
           enable-cache: true
           python-version: ${{ matrix.python }}
+          cache-suffix: ${{ matrix.django }}
       - run: uv sync --all-extras
       # Resolution takes the newest of everything the ranges allow; the matrix
       # wants one django in particular. `--upgrade-package` keeps it from
@@ -107,6 +114,7 @@ jobs:
         with:
           enable-cache: true
           python-version: "3.12"
+          cache-suffix: lowest-direct
       - run: uv sync --all-extras --resolution lowest-direct
       - name: The versions under test
         run: uv pip list

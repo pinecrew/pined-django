@@ -35,6 +35,7 @@ jobs:
         with:
           enable-cache: true
           python-version: "3.14"
+          cache-suffix: release
       # No version to set: `pyproject.toml` declares it dynamic, and the build
       # takes it from the tag this run was started by.
       - run: uv build
