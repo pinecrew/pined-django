@@ -4,10 +4,10 @@ import re
 import shlex
 import subprocess
 from traceback import format_exception_only
-from typing import Any
+from typing import Any, override
 
 from django.core import management
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 
 class AppendWithRelatedActions(argparse.Action):
@@ -72,15 +72,40 @@ class LinkedStoreTrueAction(argparse._StoreTrueAction):
         super().__call__(parser, self.get_namespace(namespace), values, option_string)
 
 
+ENVIRONMENT_VARIABLE = re.compile(r"\$(?:(\w+)|\{(\w+)(?::-([^}]*))?\})")
+"""`$NAME`, `${NAME}`, and `${NAME:-fallback}`."""
+
+
 def expand_environment_variables(arg: str) -> str:
     """
-    Substitutes `$NAME` with its environment variable, empty if unset.
+    Substitutes `$NAME` or `${NAME}` with its environment variable.
+
+    An unset variable is an error. Expanding it to an empty string turns
+    `--password $ADMIN_PASSWORD` into `--password ''`, which the command
+    behind it cannot tell from a password that was meant. Write
+    `${NAME:-fallback}` to ask for a value when the variable is unset, and
+    `${NAME:-}` when the empty string is the intended one.
 
     Args:
         arg: A single argument of a management command.
+
+    Raises:
+        CommandError: A variable is unset and names no fallback.
     """
 
-    return re.sub(r"\$(\w+)", lambda m: os.getenv(m.group(1), ""), arg)
+    def substitute(match: re.Match[str]) -> str:
+        bare, braced, fallback = match.groups()
+        name = bare or braced
+        value = os.getenv(name)
+        if value is not None:
+            return value
+        if fallback is not None:
+            return fallback
+
+        msg = f"{name} is not set. Write ${{{name}:-}} to pass an empty value, or ${{{name}:-something}} for a default"
+        raise CommandError(msg)
+
+    return ENVIRONMENT_VARIABLE.sub(substitute, arg)
 
 
 class Command(BaseCommand):
@@ -99,6 +124,7 @@ class Command(BaseCommand):
 
     help = "Chain commands execution"
 
+    @override
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         command = parser.add_argument(
             "--manage",
@@ -114,6 +140,7 @@ class Command(BaseCommand):
             help="Carry on with the chain if the preceding command fails",
         )
 
+    @override
     def handle(self, *args, **options) -> None:
         for command in options.get("commands", []):
             try:

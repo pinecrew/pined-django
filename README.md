@@ -546,10 +546,20 @@ other services is safe to read.
 
 #### Keeping a `None`
 
-A field whose `None` must reach Django goes in that model's `KEEP_NONE`. The
-mixins already do this for `SESSION_COOKIE_SAMESITE`, `CSRF_COOKIE_SAMESITE`,
-`SECURE_REFERRER_POLICY`, `SECURE_CROSS_ORIGIN_OPENER_POLICY` and
-`FILE_UPLOAD_PERMISSIONS` — the settings where "no value" is itself a value.
+Nothing to arrange: `UNSET` is the absent one, so `None` is free to be a value.
+Declare the field as nullable and write it down.
+
+```python
+class Session(mixins.Session):
+    session_cookie_samesite: Unset[str | None] = None
+```
+
+The settings where this comes up are `SESSION_COOKIE_SAMESITE`,
+`CSRF_COOKIE_SAMESITE`, `SECURE_REFERRER_POLICY`,
+`SECURE_CROSS_ORIGIN_OPENER_POLICY`, `FILE_UPLOAD_PERMISSIONS` and REST
+framework's `UNAUTHENTICATED_USER` — all declared `Unset[T | None]`, all left at
+`UNSET` until a project says otherwise.
+
 
 #### Logging
 
@@ -735,9 +745,13 @@ to read its arguments as its own.
 chain outlive that command's failure; the traceback is printed and the chain
 carries on. Without it the chain stops and the exit code is non-zero.
 
-To reach an environment variable from a management command, write `$NAME`: it is
-substituted from the environment, and empty when unset. Shell commands get that
-from the shell itself.
+To reach an environment variable from a management command, write `$NAME` or
+`${NAME}`: it is substituted from the environment. A variable that is not set is
+an error and stops the chain — `--password $ADMIN_PASSWORD` becoming
+`--password ''` is not something the command behind it can notice. Write
+`${NAME:-fallback}` for a value to use when the variable is unset, and
+`${NAME:-}` when the empty string is the one you meant. Shell commands get all
+of this from the shell itself.
 
 #### `create_admin`
 
@@ -752,9 +766,11 @@ Each gets a short flag where its initial is free.
 Under `DEBUG` every argument has a default, keyed by field type, and the command
 runs bare. Otherwise every argument is required.
 
-Failures are reported, never raised. The command is built for a start-up
-sequence, where "that user already exists" must not stop the steps after it; the
-cost is that **a genuinely broken database also passes quietly**.
+"That user already exists" is reported and nothing else happens — the command
+is built for a start-up sequence, which runs on every deploy and not only the
+first. It is the one failure treated that way: anything else, an unmigrated
+database above all, is raised, because a step that exits 0 without creating a
+user tells the deployment it has an admin when it has none.
 
 #### `uptime`
 
@@ -768,10 +784,29 @@ Process uptime answers the wrong question when gunicorn or uvicorn recycles
 workers — a worker is routinely younger than the application. `uptime` stamps a
 file and measures against its mtime instead.
 
-The path is derived from `DJANGO_SETTINGS_MODULE`, which every entry point
-resolves alike, and sits in a temp directory shared by every process on the
-host. `--path` overrides it, which a `settings.configure()` setup needs, since
-that leaves no settings module to name the file after.
+The file is named after `DJANGO_SETTINGS_MODULE`, which every entry point
+resolves alike, and lives in a directory that belongs to the user the
+application runs as:
+
+| | |
+| --- | --- |
+| systemd service | `$RUNTIME_DIRECTORY`, from `RuntimeDirectory=` in the unit |
+| user session | `$XDG_RUNTIME_DIR` |
+| container, and anything else | `/tmp/pined-django-<uid>` |
+| macOS | `~/Library/Application Support` |
+| Windows | `%LOCALAPPDATA%` |
+
+Not a bare temp directory: `systemd-tmpfiles` empties `/tmp` on a timer — ten
+days on a stock install — which resets the uptime of exactly the long-lived
+application this exists to measure, and where anyone may create a name, anyone
+may plant the stamp first. The command refuses a directory that is both
+somebody else's and writable by all.
+
+`UPTIME_STAMP_PATH` in the settings names the file outright, for a deployment
+whose start-up sequence and workers run as different users — no per-user
+directory can serve both. `--path` overrides even that, which a
+`settings.configure()` setup needs, since that leaves no settings module to name
+the file after.
 
 #### `makemigrations`, `migrate`
 
