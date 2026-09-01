@@ -22,16 +22,16 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       # Trusted publishing: PyPI verifies this workflow's own identity, so
-      # there is no token to keep anywhere. It also signs the attestations
-      # uploaded alongside the files.
+      # there is no token to keep anywhere. The same identity signs the PEP
+      # 740 attestations uploaded beside the files.
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # `hatch-vcs` reads the version out of git, and the default shallow
           # clone arrives without the tag it would read.
           fetch-depth: 0
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           python-version: "3.14"
@@ -50,10 +50,16 @@ jobs:
             echo "::error::built a development version; the tag ${TAG} was not visible to the build"
             exit 1
           fi
-      # `--check-url` skips a file the index already holds, so re-running a
-      # partly-finished upload finishes it instead of failing on it.
+      # PyPA's own action rather than `uv publish`, for the attestations:
+      # `uv publish` uploads the ones it finds beside the distributions and
+      # makes none itself (astral-sh/uv#15618), so the first release went out
+      # with no provenance at all. This action makes them and uploads them,
+      # and it is the one astral reach for in their own release.
+      #
+      # `skip-existing` passes over a file the index already holds, so
+      # re-running a partly-finished upload finishes it instead of failing on
+      # it — what `uv publish --check-url` was here for.
       - name: Publish to PyPI
-        run: >
-          uv publish
-          --trusted-publishing always
-          --check-url https://pypi.org/simple/
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true

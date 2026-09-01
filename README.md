@@ -6,6 +6,7 @@
 [![Coverage](https://img.shields.io/coverallsCoverage/github/pinecrew/pined-django)](https://coveralls.io/github/pinecrew/pined-django)
 [![PyPI](https://img.shields.io/pypi/v/pined-django.svg)](https://pypi.org/project/pined-django/)
 [![Python](https://img.shields.io/pypi/pyversions/pined-django.svg)](https://pypi.org/project/pined-django/)
+[![Django](https://img.shields.io/pypi/frameworkversions/django/pined-django.svg?label=django)](https://pypi.org/project/pined-django/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 Django stays out of your way right up until it doesn't. Has your settings module

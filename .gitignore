@@ -5,6 +5,7 @@
 *.egg-info
 __pycache__
 *.pyc
+dist
 
 .env
 db.sqlite3
@@ -13,3 +14,11 @@ db.sqlite3
 .coverage
 coverage.xml
 report.xml
+
+# A library, not an application: what CI installs should be what somebody
+# installing the package today would get, so the ranges in `pyproject.toml`
+# are the whole of what is promised and there is no resolution to freeze.
+uv.lock
+# The python a contributor happens to have. The matrix names the ones that
+# have to work, and pinning one here overrides `setup-uv` in every job.
+.python-version

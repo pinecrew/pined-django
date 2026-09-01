@@ -99,13 +99,49 @@ If you set an environment name on PyPI, `release.yml`'s `publish` job needs the
 matching `environment:` key. Empty on one side and set on the other fails the
 upload.
 
-`id-token: write` on that job is what makes the identity available; it is also
-what signs the attestations uploaded beside the files.
+`id-token: write` on that job is what makes the identity available, and the same
+identity signs the PEP 740 attestations.
+
+The upload goes through `pypa/gh-action-pypi-publish` rather than `uv publish`,
+which the rest of the pipeline is built on, and the attestations are the whole
+reason: `uv publish` uploads the ones it finds sitting beside the distributions
+and produces none of its own ([astral-sh/uv#15618][uv-attestations]) — `v0.1.0rc1`
+went out under it and PyPI reports `No provenance available` for both files.
+Whenever uv grows the ability, the step can go back to `uv publish`; until then
+the action makes them, and it is what astral themselves reach for.
+
+[uv-attestations]: https://github.com/astral-sh/uv/issues/15618
+
+## The CI matrix
+
+Nine cells of python 3.12–3.14 against django 5.2–6.1. Each one resolves from
+`pyproject.toml`, pins its django on top, runs the suite, then drops both extras
+and runs `tests/no_pydantic` — which is what a bare `pined-django` has to keep
+working as. Two `uv sync`s, and the bare path is checked against all nine
+combinations rather than the one a job of its own could have named.
+
+Alongside them, `test (lowest direct)` installs the bottom of the declared
+ranges instead of the top, so `django>=5.2` and `pydantic>=2.13.4` are versions
+something has actually run against. It sits on 3.12: `lowest-direct` resolves
+django 5.2.0, and django supports 3.14 only from 5.2.7 on.
+
+`uv.lock` is not in the repository, and neither is `.python-version`. This is a
+library, so what CI installs should be what somebody installing the package
+today would get — a lock would have every cell test one frozen resolution and
+call it the ranges. The cost is that a bad release upstream turns CI red for
+reasons no pull request caused; the version list each job prints is where to
+look first.
+
+The tools are the exception, and are pinned exactly in the `dev` group. They
+decide what a red build means, so a linter or a type checker moving on its own
+turns every branch red at once — which is a bump to make deliberately, in a
+commit of its own, rather than to discover. Raising one is `uv add --dev
+ruff==<version>`, and whatever it now objects to belongs in the same commit.
 
 ## Coverage
 
 `poe cov` writes `coverage.xml`, and one matrix cell — the newest python and
-django — reports it to [coveralls](https://coveralls.io/github/pinecrew/pined-django).
-That step does not fail the cell it runs in: whether a coverage service was
-reachable is not the suite's verdict. Enabling the repository on coveralls is
-the whole setup; until then the step warns and passes.
+django — reports it to [coveralls](https://coveralls.io/github/pinecrew/pined-django),
+which is where the badge in the README comes from. That step does not fail the
+cell it runs in: whether a coverage service was reachable is not the suite's
+verdict.

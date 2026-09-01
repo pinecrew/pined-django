@@ -18,13 +18,13 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           python-version: "3.12"
       - run: uv sync --all-extras
-      - run: uv run --no-sync poe fix --check
+      - run: uv run --no-sync poe lint
 
   test:
     runs-on: ubuntu-latest
@@ -42,17 +42,20 @@ jobs:
             django: "6.1"
             coverage: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           python-version: ${{ matrix.python }}
       - run: uv sync --all-extras
-      # The lock pins one django; the matrix wants another. `--upgrade-package`
-      # keeps it from holding on to a patch older than the python in hand —
-      # django 5.2 only supports 3.14 from 5.2.7 on.
+      # Resolution takes the newest of everything the ranges allow; the matrix
+      # wants one django in particular. `--upgrade-package` keeps it from
+      # holding on to a patch older than the python in hand — django 5.2 only
+      # supports 3.14 from 5.2.7 on.
       - name: Install django ${{ matrix.django }}
         run: uv pip install --upgrade-package django "django==${{ matrix.django }}.*"
+      - name: The versions under test
+        run: uv pip list
       - run: uv run --no-sync poe cov
       - name: Report coverage
         if: matrix.coverage
@@ -66,23 +69,45 @@ jobs:
           # is not the suite's verdict.
           fail-on-error: false
 
-  bare:
-    name: test (no extras)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-          # One python is enough: what this cell asks — which command class
-          # comes back, and what the import error says — is the same on all of
-          # them. The newest, for the same reason the coverage cell is.
-          python-version: "3.14"
-      # No extras, which is the whole point of this cell — nothing in the dev
-      # group brings `pydantic` in behind their back.
-      - run: uv sync
-      # `tests/no_pydantic` skips itself when pydantic is importable, so a
-      # leak would read as a pass. Fail on it instead, before the tests run.
+      # The same cell over again with neither extra installed, which is what a
+      # bare `pined-django` has to keep working as: which command class comes
+      # back, and what the import error says. `uv sync` with no `--all-extras`
+      # prunes what the line above brought in — nothing in the dev group pulls
+      # `pydantic` back in behind its back — and the django pin goes on again,
+      # since the prune took the matrix's version with it.
+      #
+      # A job of its own until the lock stopped being tracked, and it could
+      # only pick one python and one django to stand for the rest. Here it
+      # runs against all nine, for the price of two `uv sync`s.
+      - name: Install without the extras
+        run: |
+          uv sync
+          uv pip install --upgrade-package django "django==${{ matrix.django }}.*"
+      # `tests/no_pydantic` skips itself when pydantic is importable, so a leak
+      # would read as a pass. Fail on it instead, before the tests run.
       - name: pydantic is really absent
         run: uv run --no-sync python -c "import importlib.util,sys; sys.exit(importlib.util.find_spec('pydantic') is not None)"
       - run: uv run --no-sync poe test-bare
+
+  # The bottom of the declared ranges. Every cell above resolves the newest of
+  # everything, so `django>=5.2`, `pydantic>=2.13.4` and the rest of the floors
+  # are never the versions anything runs against — a dependency that quietly
+  # needs a newer one than the metadata asks for would go unnoticed until
+  # somebody installed the package for real.
+  #
+  # On the oldest python on purpose: `lowest-direct` resolves django 5.2.0,
+  # and django only supports 3.14 from 5.2.7 on. Pairing the floors with the
+  # newest python would test a combination nobody claims works.
+  floors:
+    name: test (lowest direct)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - run: uv sync --all-extras --resolution lowest-direct
+      - name: The versions under test
+        run: uv pip list
+      - run: uv run --no-sync poe test
