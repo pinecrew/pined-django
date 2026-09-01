@@ -47,14 +47,24 @@ Issues = "https://github.com/pinecrew/pined-django/issues"
 
 [project.optional-dependencies]
 pydantic-field = [
-    # 2.11.4, not the 2.10.4 `json-schema-to-pydantic` asks for: it builds a
-    # model with `create_model(__base__=..., __config__=...)`, which pydantic
-    # refused until then. The field itself is happy from 2.10.
-    "pydantic>=2.11.4",
+    # The schema fingerprint is written into migration files, so every version
+    # supported here has to agree on it — and 2.12 is where they start to.
+    # `Decimal` renders a `pattern` on its string arm from 2.12 on, which moves
+    # the hash of any model holding one; see the shape table in
+    # `tests/db/test_fingerprint.py`. 2.11.4 would otherwise be the floor, that
+    # being where pydantic began allowing the `create_model(__base__=...,
+    # __config__=...)` that `json-schema-to-pydantic` calls.
+    "pydantic>=2.12",
+    # Works as far back as 0.2.6, and the floor stays here anyway: nothing else
+    # in a project's tree depends on this, so lowering it buys no room in a
+    # resolution, and promises behaviour on schema shapes the suite never
+    # builds.
     "json-schema-to-pydantic>=0.4.11",
 ]
 settings = [
-    "dj-database-url>=3.1.2",
+    # 2.2.0 is where `parse()` learned `disable_server_side_cursors`, which
+    # `components.Database` passes on every call.
+    "dj-database-url>=2.2.0",
     # 2.10 is where pydantic learned to resolve a PEP 695 `type` alias, which
     # is what `Unset[T]` is; on 2.9 `UnsetType` inside it is an unknown type.
     "pydantic>=2.10",
