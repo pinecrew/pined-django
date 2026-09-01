@@ -121,9 +121,24 @@ working as. Two `uv sync`s, and the bare path is checked against all nine
 combinations rather than the one a job of its own could have named.
 
 Alongside them, `test (lowest direct)` installs the bottom of the declared
-ranges instead of the top, so `django>=5.2` and `pydantic>=2.13.4` are versions
-something has actually run against. It sits on 3.12: `lowest-direct` resolves
-django 5.2.0, and django supports 3.14 only from 5.2.7 on.
+ranges instead of the top, so the floors are versions something has actually
+run against. It sits on 3.12: `lowest-direct` resolves django 5.2.0, and django
+supports 3.14 only from 5.2.7 on.
+
+Then one job per extra, at both ends of its own ranges — four in all. They
+exist because `uv sync --extra settings` does not install what a project asking
+for only that extra would get: uv resolves the project as a whole however few
+extras it then installs, so `pydantic>=2.12` from `pydantic-field` decides the
+version `settings` gets too, and the `>=2.10` that extra declares is never the
+one under test. `uv pip install -e ".[settings]" --group dev` resolves that
+extra and nothing else, and `pydantic 2.10.0` turns up as it should.
+
+The top end of those jobs is not the matrix repeated: one extra is installed,
+so a module reaching across to something only the other extra brings fails
+there rather than in the install of whoever wanted just the one. `tests/settings`
+runs under `tests.conf_settings` for the same reason — `tests.conf` installs the
+test app, whose models declare a `PydanticField`, and the admin tests that
+assert against that app skip themselves when it is not there.
 
 `uv.lock` is not in the repository, and neither is `.python-version`. This is a
 library, so what CI installs should be what somebody installing the package

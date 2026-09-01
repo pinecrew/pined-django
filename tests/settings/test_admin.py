@@ -6,11 +6,17 @@ from collections.abc import Iterator, Sequence
 from typing import Any
 
 import pytest
+from django.conf import settings
 from django.contrib import admin
 from django.contrib.auth.models import User
 from django.test import RequestFactory
 
 from pined.django.settings.admin import change_admin_site
+
+pytestmark = pytest.mark.skipif(
+    "tests.testapp" not in settings.INSTALLED_APPS,
+    reason="the ordering is asserted against the test app, which needs the other extra",
+)
 
 
 @pytest.fixture(autouse=True)

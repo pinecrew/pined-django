@@ -96,11 +96,12 @@ jobs:
         run: uv run --no-sync python -c "import importlib.util,sys; sys.exit(importlib.util.find_spec('pydantic') is not None)"
       - run: uv run --no-sync poe test-bare
 
-  # The bottom of the declared ranges. Every cell above resolves the newest of
-  # everything, so `django>=5.2`, `pydantic>=2.13.4` and the rest of the floors
-  # are never the versions anything runs against — a dependency that quietly
-  # needs a newer one than the metadata asks for would go unnoticed until
-  # somebody installed the package for real.
+  # The bottom of the declared ranges, with everything installed. Every cell
+  # above resolves the newest of everything, so `django>=5.2`,
+  # `pydantic>=2.12` and the rest of the floors are never the versions
+  # anything runs against — a dependency that quietly needs a newer one than
+  # the metadata asks for would go unnoticed until somebody installed the
+  # package for real.
   #
   # On the oldest python on purpose: `lowest-direct` resolves django 5.2.0,
   # and django only supports 3.14 from 5.2.7 on. Pairing the floors with the
@@ -119,3 +120,43 @@ jobs:
       - name: The versions under test
         run: uv pip list
       - run: uv run --no-sync poe test
+
+  # One extra at a time, which is the only way to see its own floor. `uv sync`
+  # resolves the project as a whole however few extras it then installs, so
+  # `pydantic>=2.12` from `pydantic-field` decides the version `settings` gets
+  # too and its own `>=2.10` is never the one under test. `uv pip install` of
+  # a single extra resolves that extra and nothing else.
+  #
+  # Both ends, and the top end is not the matrix over again: it installs one
+  # extra, so a module that reached across to something only the other one
+  # brings fails here rather than for whoever installed just the one.
+  groups:
+    name: test (${{ matrix.extra }}, ${{ matrix.resolution }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        resolution: ["lowest-direct", "highest"]
+        extra: ["settings", "pydantic-field"]
+        include:
+          # `tests.conf` installs the test app, whose models declare a
+          # `PydanticField` — which the settings extra alone cannot import.
+          - extra: "settings"
+            paths: "tests/settings"
+            conf: "tests.conf_settings"
+          - extra: "pydantic-field"
+            paths: "tests/db tests/serializers"
+            conf: "tests.conf"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: "3.12"
+          cache-suffix: ${{ matrix.extra }}-${{ matrix.resolution }}
+      - run: uv venv
+      - name: Install ${{ matrix.extra }}, resolved ${{ matrix.resolution }}
+        run: uv pip install --resolution ${{ matrix.resolution }} -e ".[${{ matrix.extra }}]" --group dev
+      - name: The versions under test
+        run: uv pip list
+      - run: uv run --no-sync pytest ${{ matrix.paths }} --ds=${{ matrix.conf }} -q
