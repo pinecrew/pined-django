@@ -137,7 +137,7 @@ def find_reference_cycle(
     return None
 
 
-def check_model(model: type[pydantic.BaseModel], obj: Field | None = None) -> list[checks.Error]:
+def check_model(model: type[pydantic.BaseModel], obj: Field[Any, Any] | None = None) -> list[checks.Error]:
     """
     Report the ways `model` cannot be stored in a `PydanticField`.
 

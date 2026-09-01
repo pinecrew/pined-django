@@ -5,12 +5,14 @@ Everything here runs on hand-built states with a dry-run questioner, so no
 database is touched and no schema file is written.
 """
 
+import inspect
 import pathlib
 from typing import Any
 
 import pytest
 from django.db import models
 from django.db.migrations import AddField, CreateModel
+from django.db.migrations.autodetector import MigrationAutodetector
 from django.db.migrations.questioner import NonInteractiveMigrationQuestioner
 from django.db.migrations.state import ModelState, ProjectState
 
@@ -109,6 +111,29 @@ def test_what_the_autodetector_notices(
         (type(operation), getattr(operation, "schema_hash", None), getattr(operation, "previous_schema_hash", None))
         for operation in operations
     ] == expected
+
+
+def test_the_hook_it_all_hangs_on_is_still_there() -> None:
+    """
+    `_sort_migrations` is django's, private, and load-bearing here.
+
+    There is no public seam for adding operations after the generators have
+    run and before migrations are built out of them, so this overrides the
+    method that sits between the two. The bet is that django keeps it, and
+    keeps calling it from `_detect_changes` — see the comment above the
+    override for why it looked like the safest one to take.
+
+    The tests around this one would fail either way; this one says which
+    bet came due, and it is what the django matrix in CI is for.
+    """
+
+    hook = getattr(MigrationAutodetector, "_sort_migrations", None)
+
+    assert hook is not None, "django dropped `_sort_migrations`; find another seam before the migrations are built"
+    assert set(inspect.signature(hook).parameters) == {"self"}
+    assert "_sort_migrations" in inspect.getsource(MigrationAutodetector._detect_changes), (
+        "`_detect_changes` no longer calls `_sort_migrations`, so nothing calls the override either"
+    )
 
 
 def test_defaults_are_not_asked_for_without_anyone_to_ask() -> None:

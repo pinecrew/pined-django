@@ -285,7 +285,7 @@ class SchemaManager:
         """
 
         if isinstance(node, dict):
-            rewritten = {}
+            rewritten: dict[str, Any] = {}
             for key, value in node.items():
                 if key == "$ref" and isinstance(value, str) and value.startswith(cls.REF_PREFIX):
                     name = value.removeprefix(cls.REF_PREFIX)
@@ -318,7 +318,12 @@ class SchemaManager:
         """
 
         schema = cls.normalize(cls.describe_model(model))
-        serialized = json.dumps(schema, sort_keys=True, cls=JSONEncoder)
+        # `default=` rather than `cls=`, and `ensure_ascii` spelled out. The
+        # hash is an identifier already written into migration files, so how
+        # the schema is spelled on the way into it must never move again —
+        # while the encoder, whose whole point is to stop escaping, would
+        # move it for any schema holding a non-ASCII default or literal.
+        serialized = json.dumps(schema, sort_keys=True, default=JSONEncoder().default, ensure_ascii=True)
         model_hash = hashlib.sha256(serialized.encode()).hexdigest()[:16]
         return model_hash, schema
 

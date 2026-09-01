@@ -20,7 +20,6 @@ from pined.django.db.pydantic_field.migrations import (
     _update_instance,
     unnest,
 )
-from pined.django.utils.nested import get_nested
 from tests.testapp.models import Terminal
 
 NOT_PROVIDED = models.NOT_PROVIDED
@@ -203,27 +202,6 @@ def test_unnest(getter: tuple[str, Any], gathered: dict[str, Any], expected: Any
     """
 
     assert unnest(getter, gathered, Terminal) == expected
-
-
-@pytest.mark.parametrize(
-    ("obj", "path", "expected"),
-    [
-        pytest.param({"a": 1}, ("a",), 1, id="dict-key"),
-        pytest.param({"a": 1}, ("missing",), None, id="missing-key"),
-        pytest.param({"a": 1}, ("a", "deeper"), None, id="through-a-scalar"),
-        pytest.param(["first"], ("0",), "first", id="list-index-as-a-string"),
-        pytest.param(["first"], ("7",), None, id="index-out-of-range"),
-        pytest.param(["first"], ("nope",), None, id="index-that-is-not-a-number"),
-        pytest.param({"a": 1}, (0,), None, id="an-index-into-a-dict"),
-        pytest.param(object(), (0,), None, id="a-path-step-that-fits-nothing"),
-    ],
-)
-def test_get_nested(obj: Any, path: tuple[Any, ...], expected: Any) -> None:
-    """
-    The lookup `unnest` is built on.
-    """
-
-    assert get_nested(obj, *path) == expected
 
 
 def test_a_row_is_merged_then_transformed_then_validated() -> None:

@@ -175,7 +175,8 @@ SCENARIOS = (
                     "region": "eu",
                 },
             ),
-            # A row holding NULL is passed over rather than validated.
+            # NULL is "no document", so there is nothing to revalidate and
+            # nothing the defaults could be merged into.
             Row(columns={"current_software_version": "0.0.1"}, before=None, after=None),
         ),
     ),
@@ -210,6 +211,9 @@ SCENARIOS = (
                     "log_retention": 14,  # never in the row, so the default lands
                 },
             ),
+            # `override_fields` forces a value over user data, and NULL is not
+            # user data — it is the absence of any. It stays.
+            Row(columns={}, before=None, after=None),
         ),
     ),
     Scenario(
@@ -227,6 +231,9 @@ SCENARIOS = (
                 before=FOLDABLE | {"android_version": "13"},
                 after=FOLDED | {"android_version": "13"},
             ),
+            # A transform is the catch-all for what defaults cannot express,
+            # and it is still not offered a row that holds no document.
+            Row(columns={}, before=None, after=None),
         ),
     ),
     Scenario(

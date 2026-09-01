@@ -6,7 +6,7 @@ import inspect
 import json
 import sys
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast, dataclass_transform, overload
+from typing import TYPE_CHECKING, cast, dataclass_transform, overload, override
 
 import pydantic
 
@@ -31,9 +31,10 @@ if TYPE_CHECKING:
     from django.db.migrations.state import ProjectState
 
     class DataTransformer(Protocol):
-        def __call__(
-            self, data_before: Mapping[Any, Any] | Sequence[Any] | None
-        ) -> Mapping[Any, Any] | Sequence[Any] | None: ...
+        # Positional-only, and `Any` going in: a transform is written against
+        # one field's own shape and names its argument whatever suits it,
+        # while what actually arrives is only ever "the JSON that was there".
+        def __call__(self, data_before: Any, /) -> Mapping[Any, Any] | Sequence[Any] | None: ...
 
 
 def _deconstruct(self: DataclassInstance) -> tuple[str, list[Any], dict[str, Any]]:
@@ -75,9 +76,9 @@ def pydantic_expression[T: type](cls: T, *, path: str = "pined.django.db.migrati
 
 
 @overload
-def pydantic_expression[T: type](
-    cls: None, *, path: str = "pined.django.db.migrations"
-) -> Callable[[T], type[DataclassInstance]]: ...
+def pydantic_expression(
+    cls: None = None, *, path: str = "pined.django.db.migrations"
+) -> Callable[[type], type[DataclassInstance]]: ...
 
 
 @dataclass_transform()
@@ -187,7 +188,7 @@ class AlterPydantic(Operation):
     atomic = True
     category = OperationCategory.ALTERATION  # purely for the "~" symbol
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # noqa: PLR0913, PLR0917
         self,
         model_name: str,
         name: str,
@@ -307,6 +308,13 @@ class AlterPydantic(Operation):
                   forwards_transform=replace_version_field,
               )
               ```
+
+            - A row holding SQL NULL is passed over: NULL says the field has
+              no value, not that it holds an empty one, and neither the
+              defaults nor `override_fields="*"` nor a transform is offered
+              such a row. Materializing a document there is a decision about
+              data, not about schema — write a `RunPython` ahead of this
+              operation where that is what you mean.
         """
 
         self.model_name = model_name.lower()
@@ -319,13 +327,16 @@ class AlterPydantic(Operation):
         self.backwards_transform = backwards_transform
         self.override_fields = override_fields
 
+    @override
     def describe(self) -> str:
         return f"Revalidate data in {self.model_name}.{self.name}"
 
+    @override
     @property
     def migration_name_fragment(self) -> str:
         return f"revalidate_{self.model_name.lower()}_{self.name}"
 
+    @override
     def deconstruct(self) -> tuple[str, list[Any], dict[str, Any]]:
         kwargs: dict[str, Any] = {"model_name": self.model_name, "name": self.name, "schema_hash": self.schema_hash}
         for field in (
@@ -340,6 +351,7 @@ class AlterPydantic(Operation):
                 kwargs[field] = value
         return self.__class__.__name__, [], kwargs
 
+    @override
     def state_forwards(self, app_label: str, state: ProjectState) -> None:
         # the way to distinguish between states of Pydantic model is by _schema_hash
         model_state = state.models[app_label, self.model_name]
@@ -347,11 +359,12 @@ class AlterPydantic(Operation):
         field._schema_hash = self.schema_hash
         state.reload_model(app_label, self.model_name)
 
+    @override
     def database_forwards(
         self,
         app_label: str,
         schema_editor: BaseDatabaseSchemaEditor,
-        from_state: ProjectState,  # noqa: ARG002
+        from_state: ProjectState,
         to_state: ProjectState,
     ) -> None:
         override_fields = cast("Literal['*']", "*") if self.previous_schema_hash is None else self.override_fields
@@ -365,12 +378,13 @@ class AlterPydantic(Operation):
             override_fields,
         )
 
+    @override
     def database_backwards(
         self,
         app_label: str,
         schema_editor: BaseDatabaseSchemaEditor,
         from_state: ProjectState,
-        to_state: ProjectState,  # noqa: ARG002
+        to_state: ProjectState,
     ) -> None:
         self.database_process(
             app_label,
@@ -381,7 +395,7 @@ class AlterPydantic(Operation):
             self.backwards_transform,
         )
 
-    def database_process(  # noqa: PLR0913
+    def database_process(  # noqa: PLR0913, PLR0917
         self,
         app_label: str,
         schema_editor: BaseDatabaseSchemaEditor,
@@ -454,9 +468,9 @@ def _get_field_default(model: type[pydantic.BaseModel], field_name: str) -> Any:
     return json.loads(json.dumps(info.get_default(call_default_factory=True), cls=JSONEncoder))
 
 
-def _process_database(  # noqa: PLR0913
+def _process_database(  # noqa: PLR0913, PLR0917
     model: type[models.Model],
-    field: PydanticField,
+    field: PydanticField[Any],
     schema_hash: str | None,
     connection: BaseDatabaseWrapper,
     defaults: MutableMapping[str, Any],
@@ -586,6 +600,8 @@ def _bulk_update(conn: BaseDatabaseWrapper, context: UpdateContext) -> None:
     so large tables aren't pulled into memory at once, and a separate
     plain cursor for updates so it doesn't interfere with the
     streaming select.
+
+    Rows holding NULL are left alone — see the comment on the skip.
     """
 
     with conn.chunked_cursor() as cursor:
@@ -599,9 +615,11 @@ def _bulk_update(conn: BaseDatabaseWrapper, context: UpdateContext) -> None:
             params: list[tuple[str, Any]] = []
             for pk, raw, *other in rows:  # pk, PydanticField value, values of f_columns
                 if raw is None:
-                    # NOTE: idk if this approach is correct. Should defaults and
-                    #       transform work even on None? Maybe try to create an
-                    #       instance via pydantic_model() and apply changes to it?
+                    # NULL is "no document", not an empty one. Filling it in
+                    # would turn every never-set row into an object, and a
+                    # schema migration has no business deciding that — not
+                    # defaults, not `override_fields="*"`, not a transform.
+                    # A `RunPython` before this operation can, and says so.
                     continue
 
                 params.append(_revalidate_row(context, pk, raw, other))
@@ -644,14 +662,16 @@ def _update_instance(
     direct = {k: v for k, v in context.defaults.items() if k not in context.complex_keys and should_set(k)}
     f_gathered = dict(zip(context.f_columns.keys(), other, strict=False))
     f_values = {k: unnest(v, f_gathered, context.parent) for k, v in context.f_fields.items() if should_set(k)}
-    data |= f_values | direct
+    data.update(f_values | direct)  # `|=` is not on `MutableMapping`, only on `dict`
 
     handle_rp(context.r_fields, pop=True)
     handle_rp(context.p_fields, pop=False)
     return data
 
 
-def _revalidate_row[PK](context: UpdateContext, pk: PK, raw: str | dict | list, other: Sequence[Any]) -> tuple[str, PK]:
+def _revalidate_row[PK](
+    context: UpdateContext, pk: PK, raw: str | dict[str, Any] | list[Any], other: Sequence[Any]
+) -> tuple[str, PK]:
     """
     Merge defaults into one row's value, validate it against the new
     model, and return `(json, pk)` to write back.
@@ -718,6 +738,7 @@ class PydanticAwareAutodetector(MigrationAutodetector):
     def _sort_migrations(self) -> None:
         self.generate_pydantic_operations()
 
+        # pyrefly: ignore[missing-attribute]  # private, and the whole point — see the comment above
         super()._sort_migrations()
 
     def generate_pydantic_operations(self) -> None:
@@ -756,7 +777,7 @@ class PydanticAwareAutodetector(MigrationAutodetector):
             self.generated_operations.setdefault(app_label, []).extend(ops)
 
     # @wraps(AlterPydantic.__init__)
-    def create_alter_pydantic(  # noqa: PLR0913
+    def create_alter_pydantic(  # noqa: PLR0913, PLR0917
         self,
         app_label: str,
         model: type[pydantic.BaseModel],
@@ -796,6 +817,7 @@ class PydanticAwareAutodetector(MigrationAutodetector):
             manager.ensure_version(schema_hash, model)
 
         # in theory, we can add dependency on field creation
+        # pyrefly: ignore[missing-attribute]  # django reads it off the operation; nothing declares it
         operation._auto_deps = []
         return operation
 
@@ -811,7 +833,7 @@ class PydanticAwareAutodetector(MigrationAutodetector):
         iterates.
         """
 
-        result: dict[str, list] = {}
+        result: dict[str, list[Any]] = {}
 
         for (app_label, model_name), model_state in self.to_state.models.items():
             # check if app_label was set in makemigrations command
@@ -874,17 +896,21 @@ class PydanticAwareAutodetector(MigrationAutodetector):
 
         prompts = (
             f"\nThe schema of {model_name}.{field_name} has changed.",
-            "Since it can't be determined if present required fields have"
-            " existed before the change or just have been added, you will be"
-            " asked to fill default values for all of them.",
+            (
+                "Since it can't be determined if present required fields have"
+                " existed before the change or just have been added, you will be"
+                " asked to fill default values for all of them."
+            ),
             "For each required field provide a default value to backfill existing rows.",
-            '(Enter a python literal, e.g. "string", 42, []. Leaving blank value will skip the process, but the'
-            " migration will fail if any existing row is missing the field value)",
+            (
+                '(Enter a python literal, e.g. "string", 42, []. Leaving blank value will skip the process, but the'
+                " migration will fail if any existing row is missing the field value)"
+            ),
         )
         for prompt in prompts:
             q.prompt_output.write(prompt)
 
-        defaults = {}
+        defaults: dict[str, Any] = {}
         for name in required:
             field_info = model.model_fields[name]
             annotation = field_info.annotation

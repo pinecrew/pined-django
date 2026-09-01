@@ -676,6 +676,12 @@ AlterPydantic(
 )
 ```
 
+A row whose column holds SQL NULL is passed over. NULL says the field has no
+value, not that it holds an empty one, so neither the defaults nor
+`override_fields="*"` nor a transform is offered such a row — putting a document
+there is a decision about data rather than about schema. Write a `RunPython`
+ahead of the operation where that is what you mean.
+
 ### Management commands
 
 Available once `"pined.django"` is in `INSTALLED_APPS`.
@@ -787,10 +793,16 @@ field out of `form.base_fields`. Each keyword left `False` hides that icon.
 
 ### `pined.django.serializers.json`
 
-`JSONEncoder` is `DjangoJSONEncoder` with `ensure_ascii=False` and Pydantic
-models serialized through `model_dump`. `PydanticField` uses it for encoding by
+`JSONEncoder` is `DjangoJSONEncoder` with the escaping off and Pydantic models
+serialized through `model_dump`. `PydanticField` uses it for encoding by
 default. It is worth passing to a plain `JSONField` too, if only to keep
 non-ASCII readable in the database.
+
+Off rather than defaulted off: `json.dumps` fills in every parameter of its own
+before handing them to `cls`, `ensure_ascii=True` among them, so an encoder that
+merely defaulted the other way would be told to escape by every caller that
+never mentioned it. This one does not answer to the keyword at all — escaping is
+`json.dumps` without this `cls`.
 
 ### `pined.django.utils.nested`
 

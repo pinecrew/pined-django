@@ -3,7 +3,7 @@
 """
 
 import datetime
-from typing import Any
+from typing import Any, cast
 
 import pydantic
 import pytest
@@ -100,43 +100,50 @@ def test_from_db_value_validates(stored: str | None, expected: Filled | None) ->
     [
         pytest.param(FIELD, Filled(value=7), DUMPED, id="a-model"),
         pytest.param(FIELD, models.Value(Filled(value=7)), DUMPED, id="wrapped-in-value"),
-        pytest.param(
-            FIELD,
-            models.ExpressionWrapper(models.Value(Filled(value=7)), output_field=models.JSONField()),
-            DUMPED,
-            id="wrapped-in-an-expression",
-        ),
-        # The `Case`/`When` shape is django's own doing: a nullable field's
-        # default gets wrapped that way on the way into an `INSERT`.
-        pytest.param(
-            FIELD,
-            models.ExpressionWrapper(
-                models.Case(models.When(pk__gt=0, then=models.Value(Filled(value=7)))),
-                output_field=models.JSONField(),
-            ),
-            DUMPED,
-            id="wrapped-in-case-when",
-        ),
-        pytest.param(
-            FIELD,
-            models.ExpressionWrapper(
-                models.Case(default=models.Value(Filled(value=7))),
-                output_field=models.JSONField(),
-            ),
-            DUMPED,
-            id="wrapped-in-a-case-default",
-        ),
         pytest.param(FIELD, {"anything": True}, '{"anything": true}', id="a-plain-dict"),
-        pytest.param(FIELD, models.Func(), None, id="an-expression-with-nothing-inside"),
         pytest.param(NULLABLE, None, None, id="null"),
     ],
 )
 def test_get_db_prep_value_reduces_the_value(field: PydanticField, value: Any, expected: str | None) -> None:
     """
-    A model reaches the column however django wrapped it.
+    A model reaches the column, wrapper or no wrapper.
     """
 
     assert field.get_db_prep_value(value, connection) == expected
+
+
+@pytest.mark.django_db
+def test_a_query_expression_never_reaches_the_field(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    django compiles expressions to SQL rather than preparing them.
+
+    `Value.as_sql` hands `get_db_prep_value` its inner value, and anything
+    else — an `F()` resolved to a column, a `Case` built by `bulk_update` —
+    is rendered as SQL and never prepared at all. The field used to dig
+    through expressions on the assumption that they arrive; they do not,
+    and guessing which branch of a `Case` to store was never going to be
+    right.
+    """
+
+    seen: list[Any] = []
+    original = PydanticField.get_db_prep_value
+
+    def record(self: PydanticField, value: Any, *args: Any, **kwargs: Any) -> Any:
+        seen.append(value)
+        return original(self, value, *args, **kwargs)
+
+    monkeypatch.setattr(PydanticField, "get_db_prep_value", record)
+
+    field = cast("models.Field", Terminal._meta.get_field("metadata"))
+    terminals = [Terminal.objects.create(metadata=Metadata(region=str(i))) for i in range(2)]
+    Terminal.objects.update(metadata=models.Value(Metadata(region="updated"), output_field=field))
+    for terminal in terminals:
+        terminal.metadata = Metadata(region="bulk")
+    Terminal.objects.bulk_update(terminals, ["metadata"])
+    Terminal.objects.update(metadata=models.F("extra"))
+
+    assert seen
+    assert all(isinstance(value, Metadata) for value in seen)
 
 
 def test_to_python_wraps_the_pydantic_error() -> None:
@@ -178,7 +185,6 @@ def test_the_field_survives_a_migration_round_trip() -> None:
         pytest.param(row({"raw": 1}), {"raw": 1}, id="a-dict"),
         pytest.param(row([1, 2]), [1, 2], id="a-list"),
         pytest.param(row(None), None, id="an-empty-column"),
-        pytest.param(None, None, id="a-missing-row"),
     ],
 )
 def test_value_to_string(obj: Any, expected: Any) -> None:

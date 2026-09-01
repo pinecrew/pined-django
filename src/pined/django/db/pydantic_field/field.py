@@ -9,7 +9,7 @@ plain dicts/lists.
 from __future__ import annotations
 
 import contextlib
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, override
 
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -44,14 +44,14 @@ class PydanticField[T: pydantic.BaseModel](models.JSONField):
 
     __module__ = "pined.django.db.models"
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # noqa: PLR0913, PLR0917
         self,
         model: type[T],
         verbose_name: str | None = None,
         name: str | None = None,
         encoder: type[json.JSONEncoder] | None = None,
         decoder: type[json.JSONDecoder] | None = None,
-        default: Callable | models.NOT_PROVIDED | None = models.NOT_PROVIDED,
+        default: Callable[[], Any] | models.NOT_PROVIDED | None = models.NOT_PROVIDED,
         **kwargs,
     ) -> None:
         """
@@ -78,6 +78,7 @@ class PydanticField[T: pydantic.BaseModel](models.JSONField):
         self._pydantic_model = model
         self._schema_hash: str | None = None
 
+    @override
     def check(self, **kwargs) -> list[CheckMessage]:
         """
         Run `JSONField`'s own checks, then those for `inner_model`.
@@ -89,7 +90,8 @@ class PydanticField[T: pydantic.BaseModel](models.JSONField):
 
         return [*super().check(**kwargs), *check_model(self.inner_model, self)]
 
-    def from_db_value(self, value: str | None, expression: Expression, connection: BaseDatabaseWrapper) -> None | T:
+    @override
+    def from_db_value(self, value: str | None, expression: Expression, connection: BaseDatabaseWrapper) -> T | None:
         """
         Validate the raw JSON coming back from the database into `model`.
         """
@@ -104,14 +106,15 @@ class PydanticField[T: pydantic.BaseModel](models.JSONField):
 
         return self._pydantic_model.model_validate(v)
 
-    def get_db_prep_value(self, value: Any, connection: BaseDatabaseWrapper, prepared: bool = False) -> Any:  # noqa: PLR0911, C901
+    @override
+    def get_db_prep_value(self, value: Any, connection: BaseDatabaseWrapper, prepared: bool = False) -> Any:
         """
         Reduce `value` to something a plain `JSONField` can store.
 
-        `value` may be a `BaseModel` instance, a `models.Value`/`Expression`
-        wrapping one (e.g. produced by an `F()`/`Case()` query expression), or
-        already a plain dict/list. This unwraps expressions recursively until
-        it finds an actual value, then dumps any `BaseModel` to a dict.
+        `value` is a `BaseModel` instance, or already a plain dict/list.
+        Anything a query expression wrapped never arrives here: django
+        compiles those to SQL, and `Value.as_sql` hands over its inner
+        value rather than itself.
         """
 
         if self.null and value is None:
@@ -121,34 +124,14 @@ class PydanticField[T: pydantic.BaseModel](models.JSONField):
         if hasattr(value, "model_dump"):
             return super().get_db_prep_value(value.model_dump(), connection, prepared)
 
-        # got models.Value, rerun this function with the inner value
+        # not a route django takes, but a caller reaching for the field
+        # directly may well hand over the wrapper it has
         if isinstance(value, models.Value):
             return self.get_db_prep_value(value.value, connection, prepared)
 
-        # got an Expression, prepare yourself for some digging
-        if hasattr(value, "get_source_expressions"):
-            expressions = value.get_source_expressions()
-            # nothing inside — broken Expression?
-            if not expressions:
-                return None
-
-            expr = expressions[0]
-
-            # If null=True, django would make a backflip and wrap everything
-            # into Case-When-Else, with Value-s inside. Amusing.
-            if isinstance(expr, models.Case):
-                for when in expr.cases:
-                    if isinstance(when, models.When):
-                        return self.get_db_prep_value(when.result, connection, prepared)
-                if hasattr(expr, "default"):
-                    return self.get_db_prep_value(expr.default, connection, prepared)
-
-            if hasattr(expr, "value"):
-                return self.get_db_prep_value(expr.value, connection, prepared)
-            return self.get_db_prep_value(expr, connection, prepared)
-
         return super().get_db_prep_value(value, connection, prepared)
 
+    @override
     def to_python(self, value: Any) -> T | None:
         """
         Validate a form/deserialization-time value into `model`.
@@ -164,6 +147,7 @@ class PydanticField[T: pydantic.BaseModel](models.JSONField):
         except pydantic.ValidationError as e:
             raise ValidationError(str(e)) from e
 
+    @override
     def deconstruct(self) -> tuple[str, str, Sequence[Any], dict[str, Any]]:
         """
         Serialize the field for migrations, including `model` as the
@@ -173,20 +157,18 @@ class PydanticField[T: pydantic.BaseModel](models.JSONField):
         name, path, args, kwargs = super().deconstruct()
         return name, path, (self._pydantic_model, *args), kwargs
 
-    def value_to_string(self, obj: models.Model) -> dict | list | None:
+    @override
+    def value_to_string(self, obj: models.Model) -> dict[str, Any] | list[Any] | None:
         """
         Return the field's value as plain dict/list data, for fixture
         serialization.
         """
 
-        if self.null and obj is None:
-            return None
-
         # some apps may pass a dict / list, not a BaseModel (I'm looking at you, easyaudit)
         value = self.value_from_object(obj)
         if value is None:
             return None
-        if isinstance(value, dict | list):
+        if isinstance(value, (dict, list)):  # a tuple, not `dict | list`: that one cannot carry type arguments
             return value
         return value.model_dump()
 
@@ -198,6 +180,7 @@ class PydanticField[T: pydantic.BaseModel](models.JSONField):
 
         return self._pydantic_model
 
+    @override
     def clone(self) -> PydanticField[T]:
         """
         Copy the field, carrying over the schema hash set by migrations.
