@@ -14,7 +14,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.http import HttpRequest
 from django.test import RequestFactory
 
-from pined.django.settings import configure
+from pined.django.settings import build_settings
 from pined.django.settings.contrib.axes import AxesSettings
 from pined.django.settings.contrib.debug_toolbar import DEBUG_VALUES, DebugToolbar, DebugToolbarSettings, get_debug
 from pined.django.settings.contrib.easyaudit import EasyAuditSettings
@@ -29,7 +29,7 @@ def build(part: type, **fields: Any) -> dict[str, Any]:
     Assemble one stub the way a settings module would.
     """
 
-    settings = configure(
+    settings = build_settings(
         type(part.__name__, (part,), {"__annotations__": {}}),
         env_prefix="PINEDTEST_",
         env_file=None,
@@ -56,12 +56,14 @@ def test_a_bare_stub_brings_only_what_it_stands_behind(part: type, expected: dic
     assert build(part) == expected
 
 
-def test_rest_framework_nests_upper_cased_and_keeps_its_one_none() -> None:
+def test_rest_framework_nests_upper_cased_and_keeps_a_none() -> None:
     """
     The inner dict gets the same treatment as the outer one.
 
-    `UNAUTHENTICATED_USER` is the exception: `None` there means "nobody",
-    so it has to reach the library rather than be dropped.
+    `UNAUTHENTICATED_USER` is where that matters: `None` there means
+    "nobody", so a project that writes it down has it reach the library,
+    while one that never mentions it keeps `rest_framework`'s own
+    `AnonymousUser` rather than a restatement of it.
     """
 
     dumped = build(RestFrameworkSettings, rest_framework=RestFramework(page_size=25, search_param="filter[search]"))
@@ -69,7 +71,7 @@ def test_rest_framework_nests_upper_cased_and_keeps_its_one_none() -> None:
     assert dumped["REST_FRAMEWORK"]["PAGE_SIZE"] == 25
     assert dumped["REST_FRAMEWORK"]["SEARCH_PARAM"] == "filter[search]"
 
-    assert RestFramework().unauthenticated_user == "django.contrib.auth.models.AnonymousUser"
+    assert RestFramework().model_dump(by_alias=True) == {}
     assert RestFramework(unauthenticated_user=None).model_dump(by_alias=True) == {"UNAUTHENTICATED_USER": None}
 
 

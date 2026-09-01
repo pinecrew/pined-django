@@ -12,7 +12,7 @@ except ImportError as exc:
     msg = 'To use `settings`, install package with "settings" option: pined-django[settings].'
     raise ImportError(msg) from exc
 
-from pined.django.settings.utils import DropUnset
+from pined.django.settings.utils import UNSET, DropUnset, Unset
 
 
 class EasyAuditSettings(DropUnset, BaseModel):
@@ -23,35 +23,35 @@ class EasyAuditSettings(DropUnset, BaseModel):
     `_default` ones replace it wholesale.
     """
 
-    django_easy_audit_watch_auth_events: bool | None = None
-    django_easy_audit_watch_model_events: bool | None = None
-    django_easy_audit_watch_request_events: bool | None = None
+    django_easy_audit_watch_auth_events: Unset[bool] = UNSET
+    django_easy_audit_watch_model_events: Unset[bool] = UNSET
+    django_easy_audit_watch_request_events: Unset[bool] = UNSET
 
-    django_easy_audit_registered_classes: list[str] | None = None
-    django_easy_audit_unregistered_classes_default: list[str] | None = None
-    django_easy_audit_unregistered_classes_extra: list[str] | None = None
+    django_easy_audit_registered_classes: Unset[list[str]] = UNSET
+    django_easy_audit_unregistered_classes_default: Unset[list[str]] = UNSET
+    django_easy_audit_unregistered_classes_extra: Unset[list[str]] = UNSET
 
-    django_easy_audit_registered_urls: list[str] | None = None
-    django_easy_audit_unregistered_urls_default: list[str] | None = None
-    django_easy_audit_unregistered_urls_extra: list[str] | None = None
+    django_easy_audit_registered_urls: Unset[list[str]] = UNSET
+    django_easy_audit_unregistered_urls_default: Unset[list[str]] = UNSET
+    django_easy_audit_unregistered_urls_extra: Unset[list[str]] = UNSET
 
-    django_easy_audit_logging_backend: str | None = None
-    django_easy_audit_database_alias: str | None = None
-    django_easy_audit_remote_addr_header: str | None = None
-    django_easy_audit_readonly_events: bool | None = None
-    django_easy_audit_user_db_constraint: bool | None = None
+    django_easy_audit_logging_backend: Unset[str] = UNSET
+    django_easy_audit_database_alias: Unset[str] = UNSET
+    django_easy_audit_remote_addr_header: Unset[str] = UNSET
+    django_easy_audit_readonly_events: Unset[bool] = UNSET
+    django_easy_audit_user_db_constraint: Unset[bool] = UNSET
 
-    django_easy_audit_crud_difference_callbacks: list[str] | None = None
-    django_easy_audit_crud_event_no_changed_fields_skip: bool | None = None
-    django_easy_audit_truncate_table_sql_statement: str | None = None
+    django_easy_audit_crud_difference_callbacks: Unset[list[str]] = UNSET
+    django_easy_audit_crud_event_no_changed_fields_skip: Unset[bool] = UNSET
+    django_easy_audit_truncate_table_sql_statement: Unset[str] = UNSET
 
-    django_easy_audit_admin_show_auth_events: bool | None = None
-    django_easy_audit_admin_show_model_events: bool | None = None
-    django_easy_audit_admin_show_request_events: bool | None = None
+    django_easy_audit_admin_show_auth_events: Unset[bool] = UNSET
+    django_easy_audit_admin_show_model_events: Unset[bool] = UNSET
+    django_easy_audit_admin_show_request_events: Unset[bool] = UNSET
 
-    django_easy_audit_crud_event_list_filter: list[str] | None = None
-    django_easy_audit_crud_event_search_fields: list[str] | None = None
-    django_easy_audit_login_event_list_filter: list[str] | None = None
-    django_easy_audit_login_event_search_fields: list[str] | None = None
-    django_easy_audit_request_event_list_filter: list[str] | None = None
-    django_easy_audit_request_event_search_fields: list[str] | None = None
+    django_easy_audit_crud_event_list_filter: Unset[list[str]] = UNSET
+    django_easy_audit_crud_event_search_fields: Unset[list[str]] = UNSET
+    django_easy_audit_login_event_list_filter: Unset[list[str]] = UNSET
+    django_easy_audit_login_event_search_fields: Unset[list[str]] = UNSET
+    django_easy_audit_request_event_list_filter: Unset[list[str]] = UNSET
+    django_easy_audit_request_event_search_fields: Unset[list[str]] = UNSET

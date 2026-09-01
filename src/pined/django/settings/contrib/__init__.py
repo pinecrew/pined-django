@@ -14,6 +14,9 @@ the setting it becomes, so `unfold: unfold.Unfold` would rebind the module
 name before the annotation is read.
 
 ```
-from pined.django.settings.contrib.rest_framework import RestFramework, RestFrameworkSettings
+from pined.django.settings.contrib.rest_framework import (
+    RestFramework,
+    RestFrameworkSettings,
+)
 ```
 """

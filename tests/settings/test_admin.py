@@ -54,7 +54,51 @@ def test_the_order_is_followed() -> None:
 
     change_admin_site({"auth": ()})
 
-    assert {label for label, _ in listing()} == {"auth", "testapp"}
+    assert [label for label, _ in listing()] == ["auth", "testapp"]
+
+
+@pytest.mark.django_db
+def test_the_order_survives_the_first_request() -> None:
+    """
+    The caller's dict is left alone.
+
+    It is bound into the `partialmethod` and shared by every request, while
+    the app list is only what the current user may see on the current page.
+    Writing the leftovers back would let the first request decide where the
+    unnamed apps sit for everyone after it.
+    """
+
+    order: dict[str, Sequence[str]] = {"auth": ()}
+    change_admin_site(order)
+
+    listing("/admin/testapp/terminal/")
+
+    assert order == {"auth": ()}
+    assert [label for label, _ in listing()] == ["auth", "testapp"]
+
+
+@pytest.mark.django_db
+def test_the_unnamed_tail_is_sorted_the_way_the_admin_would(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Case-insensitively, which is what `AdminSite.get_app_list` does.
+
+    Sorting by the verbose name as written puts every capitalised app ahead
+    of every lower-cased one — "Banana" before "apple", where the admin
+    would have put "apple" first.
+    """
+
+    original = admin.AdminSite._build_app_dict
+
+    def relabelled(self: admin.AdminSite, request: Any, label: str | None = None) -> dict[str, Any]:
+        built = original(self, request, label)
+        for name, app in built.items():
+            app["name"] = {"auth": "apple", "testapp": "Banana"}.get(name, app["name"])
+        return built
+
+    monkeypatch.setattr(admin.AdminSite, "_build_app_dict", relabelled)
+    change_admin_site({})
+
+    assert [label for label, _ in listing()] == ["auth", "testapp"]
 
 
 @pytest.mark.django_db
@@ -79,3 +123,18 @@ def test_the_app_being_looked_at_goes_first() -> None:
     change_admin_site({"auth": (), "testapp": ()})
 
     assert listing("/admin/testapp/terminal/")[0][0] == "testapp"
+
+
+@pytest.mark.django_db
+def test_only_the_app_the_path_starts_with_goes_first() -> None:
+    """
+    An app url further down the path does not count.
+
+    A char primary key ends up in `request.path` verbatim, and the sidebar
+    can be rendered outside the admin altogether — neither is a reason to
+    call the app the current one.
+    """
+
+    change_admin_site({"auth": (), "testapp": ()})
+
+    assert listing("/dashboard/admin/testapp/")[0][0] == "auth"

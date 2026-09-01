@@ -7,7 +7,7 @@ except ImportError as exc:
     msg = 'To use `settings`, install package with "settings" option: pined-django[settings].'
     raise ImportError(msg) from exc
 
-from .utils import DjangoModel
+from .utils import UNSET, DjangoModel, Unset
 
 
 class Database(BaseModel):
@@ -19,16 +19,18 @@ class Database(BaseModel):
     """
 
     url: str
-    engine: str | None = None
+    engine: Unset[str] = UNSET
     conn_max_age: int | None = 0
     conn_health_checks: bool = False
     disable_server_side_cursors: bool = False
     ssl_require: bool = False
-    test_options: dict | None = None
+    test_options: Unset[dict[str, Any]] = UNSET
 
     @model_serializer
     def serialize(self) -> dj_database_url.DBConfig:
-        return dj_database_url.parse(**dict(self))
+        # `UNSET` is ours to keep: `parse` wants the argument left out, and
+        # it happening to be falsy is not something to lean on.
+        return dj_database_url.parse(**{name: value for name, value in self if value is not UNSET})
 
 
 class Databases(BaseModel):
@@ -48,10 +50,10 @@ class TemplateEngine(DjangoModel):
     """
 
     backend: str
-    name: str | None = None
-    dirs: list[str] | None = None
-    app_dirs: bool | None = None
-    options: dict[str, Any] | None = None
+    name: Unset[str] = UNSET
+    dirs: Unset[list[str]] = UNSET
+    app_dirs: Unset[bool] = UNSET
+    options: Unset[dict[str, Any]] = UNSET
 
 
 class PasswordValidator(DjangoModel):
@@ -60,7 +62,7 @@ class PasswordValidator(DjangoModel):
     """
 
     name: str
-    options: dict[str, Any] | None = None
+    options: Unset[dict[str, Any]] = UNSET
 
 
 class Cache(DjangoModel):
@@ -72,12 +74,12 @@ class Cache(DjangoModel):
     """
 
     backend: str
-    location: str | list[str] | None = None
-    timeout: int | None = None
-    key_prefix: str | None = None
-    version: int | None = None
-    key_function: str | None = None
-    options: dict[str, Any] | None = None
+    location: Unset[str | list[str]] = UNSET
+    timeout: Unset[int] = UNSET
+    key_prefix: Unset[str] = UNSET
+    version: Unset[int] = UNSET
+    key_function: Unset[str] = UNSET
+    options: Unset[dict[str, Any]] = UNSET
 
 
 class Storage(DjangoModel):
@@ -86,7 +88,7 @@ class Storage(DjangoModel):
     """
 
     backend: str
-    options: dict[str, Any] | None = None
+    options: Unset[dict[str, Any]] = UNSET
 
 
 class Mailer(DjangoModel):
@@ -98,7 +100,7 @@ class Mailer(DjangoModel):
     """
 
     backend: str
-    options: dict[str, Any] | None = None
+    options: Unset[dict[str, Any]] = UNSET
 
 
 class TaskBackend(DjangoModel):
@@ -107,5 +109,5 @@ class TaskBackend(DjangoModel):
     """
 
     backend: str
-    queues: list[str] | None = None
-    options: dict[str, Any] | None = None
+    queues: Unset[list[str]] = UNSET
+    options: Unset[dict[str, Any]] = UNSET

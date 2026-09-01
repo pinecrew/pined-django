@@ -1,6 +1,6 @@
 import pathlib
 import re
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, Literal, override
 
 try:
     from pydantic import BaseModel, computed_field
@@ -9,7 +9,7 @@ except ImportError as exc:
     raise ImportError(msg) from exc
 
 from . import components
-from .utils import DropUnset
+from .utils import UNSET, DropUnset, Unset
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
@@ -22,38 +22,38 @@ class General(DropUnset, BaseModel):
     django at all, so leaving them unset leaves them absent.
     """
 
-    debug: bool | None = None
-    secret_key: str | None = None
-    secret_key_fallbacks: list[str] | None = None
-    allowed_hosts: list[str] | None = None
+    debug: Unset[bool] = UNSET
+    secret_key: Unset[str] = UNSET
+    secret_key_fallbacks: Unset[list[str]] = UNSET
+    allowed_hosts: Unset[list[str]] = UNSET
 
-    root_urlconf: str | None = None
-    wsgi_application: str | None = None
-    asgi_application: str | None = None
-    site_id: int | None = None
+    root_urlconf: Unset[str] = UNSET
+    wsgi_application: Unset[str] = UNSET
+    asgi_application: Unset[str] = UNSET
+    site_id: Unset[int] = UNSET
 
-    time_zone: str | None = None
-    use_tz: bool | None = None
+    time_zone: Unset[str] = UNSET
+    use_tz: Unset[bool] = UNSET
 
-    append_slash: bool | None = None
-    prepend_www: bool | None = None
-    force_script_name: str | None = None
-    default_charset: str | None = None
-    absolute_url_overrides: dict[str, Any] | None = None
-    urlize_assume_https: bool | None = None
+    append_slash: Unset[bool] = UNSET
+    prepend_www: Unset[bool] = UNSET
+    force_script_name: Unset[str] = UNSET
+    default_charset: Unset[str] = UNSET
+    absolute_url_overrides: Unset[dict[str, Any]] = UNSET
+    urlize_assume_https: Unset[bool] = UNSET
 
-    admins: list[str | tuple[str, str]] | None = None
-    managers: list[str | tuple[str, str]] | None = None
-    internal_ips: list[str] | None = None
-    silenced_system_checks: list[str] | None = None
-    disallowed_user_agents: list[re.Pattern[str]] | None = None
-    ignorable_404_urls: list[re.Pattern[str]] | None = None
+    admins: Unset[list[str | tuple[str, str]]] = UNSET
+    managers: Unset[list[str | tuple[str, str]]] = UNSET
+    internal_ips: Unset[list[str]] = UNSET
+    silenced_system_checks: Unset[list[str]] = UNSET
+    disallowed_user_agents: Unset[list[re.Pattern[str]]] = UNSET
+    ignorable_404_urls: Unset[list[re.Pattern[str]]] = UNSET
 
-    debug_propagate_exceptions: bool | None = None
-    default_exception_reporter: str | None = None
-    default_exception_reporter_filter: str | None = None
-    signing_backend: str | None = None
-    signed_cookie_legacy_salt_fallback: bool | None = None
+    debug_propagate_exceptions: Unset[bool] = UNSET
+    default_exception_reporter: Unset[str] = UNSET
+    default_exception_reporter_filter: Unset[str] = UNSET
+    signing_backend: Unset[str] = UNSET
+    signed_cookie_legacy_salt_fallback: Unset[bool] = UNSET
 
 
 class Apps(DropUnset, BaseModel):
@@ -91,8 +91,8 @@ class Apps(DropUnset, BaseModel):
         "django.middleware.clickjacking.XFrameOptionsMiddleware",
     )
 
-    installed_apps: list[str] | None = None
-    middleware: list[str] | None = None
+    installed_apps: Unset[list[str]] = UNSET
+    middleware: Unset[list[str]] = UNSET
 
 
 class Database(DropUnset, BaseModel):
@@ -100,12 +100,12 @@ class Database(DropUnset, BaseModel):
     `DATABASES` and the rest of the ORM's configuration.
     """
 
-    databases: components.Databases | None = None
-    database_routers: list[str] | None = None
-    default_auto_field: str | None = None
-    default_tablespace: str | None = None
-    default_index_tablespace: str | None = None
-    migration_modules: dict[str, str] | None = None
+    databases: Unset[components.Databases] = UNSET
+    database_routers: Unset[list[str]] = UNSET
+    default_auto_field: Unset[str] = UNSET
+    default_tablespace: Unset[str] = UNSET
+    default_index_tablespace: Unset[str] = UNSET
+    migration_modules: Unset[dict[str, str]] = UNSET
 
 
 class Auth(DropUnset, BaseModel):
@@ -127,15 +127,15 @@ class Auth(DropUnset, BaseModel):
         )
     )
 
-    auth_user_model: str | None = None
-    authentication_backends: list[str] | None = None
-    auth_password_validators: list[components.PasswordValidator] | None = None
-    password_hashers: list[str] | None = None
-    password_reset_timeout: int | None = None
+    auth_user_model: Unset[str] = UNSET
+    authentication_backends: Unset[list[str]] = UNSET
+    auth_password_validators: Unset[list[components.PasswordValidator]] = UNSET
+    password_hashers: Unset[list[str]] = UNSET
+    password_reset_timeout: Unset[int] = UNSET
 
-    login_url: str | None = None
-    login_redirect_url: str | None = None
-    logout_redirect_url: str | None = None
+    login_url: Unset[str] = UNSET
+    login_redirect_url: Unset[str] = UNSET
+    logout_redirect_url: Unset[str] = UNSET
 
 
 class Session(DropUnset, BaseModel):
@@ -143,23 +143,21 @@ class Session(DropUnset, BaseModel):
     The session backend and its cookie.
     """
 
-    KEEP_NONE: ClassVar[frozenset[str]] = frozenset({"session_cookie_samesite"})
+    session_engine: Unset[str] = UNSET
+    session_serializer: Unset[str] = UNSET
+    session_cache_alias: Unset[str] = UNSET
+    session_file_path: Unset[str | pathlib.Path] = UNSET
 
-    session_engine: str | None = None
-    session_serializer: str | None = None
-    session_cache_alias: str | None = None
-    session_file_path: str | pathlib.Path | None = None
+    session_cookie_name: Unset[str] = UNSET
+    session_cookie_age: Unset[int] = UNSET
+    session_cookie_domain: Unset[str] = UNSET
+    session_cookie_path: Unset[str] = UNSET
+    session_cookie_secure: Unset[bool] = UNSET
+    session_cookie_httponly: Unset[bool] = UNSET
+    session_cookie_samesite: Unset[str | None] = UNSET
 
-    session_cookie_name: str | None = None
-    session_cookie_age: int | None = None
-    session_cookie_domain: str | None = None
-    session_cookie_path: str | None = None
-    session_cookie_secure: bool | None = None
-    session_cookie_httponly: bool | None = None
-    session_cookie_samesite: str | None = "Lax"
-
-    session_expire_at_browser_close: bool | None = None
-    session_save_every_request: bool | None = None
+    session_expire_at_browser_close: Unset[bool] = UNSET
+    session_save_every_request: Unset[bool] = UNSET
 
 
 class Csrf(DropUnset, BaseModel):
@@ -167,20 +165,18 @@ class Csrf(DropUnset, BaseModel):
     Cross-site request forgery protection.
     """
 
-    KEEP_NONE: ClassVar[frozenset[str]] = frozenset({"csrf_cookie_samesite"})
+    csrf_cookie_name: Unset[str] = UNSET
+    csrf_cookie_age: Unset[int] = UNSET
+    csrf_cookie_domain: Unset[str] = UNSET
+    csrf_cookie_path: Unset[str] = UNSET
+    csrf_cookie_secure: Unset[bool] = UNSET
+    csrf_cookie_httponly: Unset[bool] = UNSET
+    csrf_cookie_samesite: Unset[str | None] = UNSET
 
-    csrf_cookie_name: str | None = None
-    csrf_cookie_age: int | None = None
-    csrf_cookie_domain: str | None = None
-    csrf_cookie_path: str | None = None
-    csrf_cookie_secure: bool | None = None
-    csrf_cookie_httponly: bool | None = None
-    csrf_cookie_samesite: str | None = "Lax"
-
-    csrf_use_sessions: bool | None = None
-    csrf_header_name: str | None = None
-    csrf_trusted_origins: list[str] | None = None
-    csrf_failure_view: str | None = None
+    csrf_use_sessions: Unset[bool] = UNSET
+    csrf_header_name: Unset[str] = UNSET
+    csrf_trusted_origins: Unset[list[str]] = UNSET
+    csrf_failure_view: Unset[str] = UNSET
 
 
 class Security(DropUnset, BaseModel):
@@ -188,29 +184,25 @@ class Security(DropUnset, BaseModel):
     `SecurityMiddleware`'s headers and the proxy-facing settings.
     """
 
-    KEEP_NONE: ClassVar[frozenset[str]] = frozenset(
-        {"secure_referrer_policy", "secure_cross_origin_opener_policy"},
-    )
+    secure_content_type_nosniff: Unset[bool] = UNSET
+    secure_cross_origin_opener_policy: Unset[str | None] = UNSET
+    secure_referrer_policy: Unset[str | list[str] | None] = UNSET
 
-    secure_content_type_nosniff: bool | None = None
-    secure_cross_origin_opener_policy: str | None = "same-origin"
-    secure_referrer_policy: str | list[str] | None = "same-origin"
+    secure_hsts_seconds: Unset[int] = UNSET
+    secure_hsts_include_subdomains: Unset[bool] = UNSET
+    secure_hsts_preload: Unset[bool] = UNSET
 
-    secure_hsts_seconds: int | None = None
-    secure_hsts_include_subdomains: bool | None = None
-    secure_hsts_preload: bool | None = None
+    secure_ssl_redirect: Unset[bool] = UNSET
+    secure_ssl_host: Unset[str] = UNSET
+    secure_redirect_exempt: Unset[list[str]] = UNSET
 
-    secure_ssl_redirect: bool | None = None
-    secure_ssl_host: str | None = None
-    secure_redirect_exempt: list[str] | None = None
+    secure_csp: Unset[dict[str, Any]] = UNSET
+    secure_csp_report_only: Unset[dict[str, Any]] = UNSET
 
-    secure_csp: dict[str, Any] | None = None
-    secure_csp_report_only: dict[str, Any] | None = None
-
-    secure_proxy_ssl_header: tuple[str, str] | None = None
-    use_x_forwarded_host: bool | None = None
-    use_x_forwarded_port: bool | None = None
-    x_frame_options: str | None = None
+    secure_proxy_ssl_header: Unset[tuple[str, str]] = UNSET
+    use_x_forwarded_host: Unset[bool] = UNSET
+    use_x_forwarded_port: Unset[bool] = UNSET
+    x_frame_options: Unset[str] = UNSET
 
 
 class Email(DropUnset, BaseModel):
@@ -222,25 +214,25 @@ class Email(DropUnset, BaseModel):
     `email_subject_prefix` and `email_use_localtime` are staying.
     """
 
-    mailers: dict[str, components.Mailer] | None = None
+    mailers: Unset[dict[str, components.Mailer]] = UNSET
 
-    email_backend: str | None = None
-    email_file_path: str | pathlib.Path | None = None
-    email_host: str | None = None
-    email_port: int | None = None
-    email_host_user: str | None = None
-    email_host_password: str | None = None
-    email_timeout: float | None = None
+    email_backend: Unset[str] = UNSET
+    email_file_path: Unset[str | pathlib.Path] = UNSET
+    email_host: Unset[str] = UNSET
+    email_port: Unset[int] = UNSET
+    email_host_user: Unset[str] = UNSET
+    email_host_password: Unset[str] = UNSET
+    email_timeout: Unset[float] = UNSET
 
-    email_use_tls: bool | None = None
-    email_use_ssl: bool | None = None
-    email_ssl_certfile: str | pathlib.Path | None = None
-    email_ssl_keyfile: str | pathlib.Path | None = None
-    email_use_localtime: bool | None = None
+    email_use_tls: Unset[bool] = UNSET
+    email_use_ssl: Unset[bool] = UNSET
+    email_ssl_certfile: Unset[str | pathlib.Path] = UNSET
+    email_ssl_keyfile: Unset[str | pathlib.Path] = UNSET
+    email_use_localtime: Unset[bool] = UNSET
 
-    email_subject_prefix: str | None = None
-    default_from_email: str | None = None
-    server_email: str | None = None
+    email_subject_prefix: Unset[str] = UNSET
+    default_from_email: Unset[str] = UNSET
+    server_email: Unset[str] = UNSET
 
 
 class Templates(DropUnset, BaseModel):
@@ -267,10 +259,10 @@ class Templates(DropUnset, BaseModel):
         options={"context_processors": [*CONTEXT_PROCESSORS]},
     )
 
-    templates: list[components.TemplateEngine] | None = None
-    form_renderer: str | None = None
+    templates: Unset[list[components.TemplateEngine]] = UNSET
+    form_renderer: Unset[str] = UNSET
 
-    use_blank_choice_dash: bool | None = None
+    use_blank_choice_dash: Unset[bool] = UNSET
     """Restores the old `---------` blank label, which django 7.0 drops."""
 
 
@@ -279,15 +271,15 @@ class Static(DropUnset, BaseModel):
     Static and media files, and the storage backends behind them.
     """
 
-    static_url: str | None = None
-    static_root: str | pathlib.Path | None = None
-    staticfiles_dirs: list[str | pathlib.Path | tuple[str, str | pathlib.Path]] | None = None
-    staticfiles_finders: list[str] | None = None
+    static_url: Unset[str] = UNSET
+    static_root: Unset[str | pathlib.Path] = UNSET
+    staticfiles_dirs: Unset[list[str | pathlib.Path | tuple[str, str | pathlib.Path]]] = UNSET
+    staticfiles_finders: Unset[list[str]] = UNSET
 
-    media_url: str | None = None
-    media_root: str | pathlib.Path | None = None
+    media_url: Unset[str] = UNSET
+    media_root: Unset[str | pathlib.Path] = UNSET
 
-    storages: dict[str, components.Storage] | None = None
+    storages: Unset[dict[str, components.Storage]] = UNSET
 
 
 class Uploads(DropUnset, BaseModel):
@@ -295,17 +287,15 @@ class Uploads(DropUnset, BaseModel):
     Limits and permissions for incoming files and form data.
     """
 
-    KEEP_NONE: ClassVar[frozenset[str]] = frozenset({"file_upload_permissions"})
+    file_upload_handlers: Unset[list[str]] = UNSET
+    file_upload_max_memory_size: Unset[int] = UNSET
+    file_upload_temp_dir: Unset[str | pathlib.Path] = UNSET
+    file_upload_permissions: Unset[int | None] = UNSET
+    file_upload_directory_permissions: Unset[int] = UNSET
 
-    file_upload_handlers: list[str] | None = None
-    file_upload_max_memory_size: int | None = None
-    file_upload_temp_dir: str | pathlib.Path | None = None
-    file_upload_permissions: int | None = 0o644
-    file_upload_directory_permissions: int | None = None
-
-    data_upload_max_memory_size: int | None = None
-    data_upload_max_number_fields: int | None = None
-    data_upload_max_number_files: int | None = None
+    data_upload_max_memory_size: Unset[int] = UNSET
+    data_upload_max_number_fields: Unset[int] = UNSET
+    data_upload_max_number_files: Unset[int] = UNSET
 
 
 class I18n(DropUnset, BaseModel):
@@ -313,19 +303,19 @@ class I18n(DropUnset, BaseModel):
     Languages and the locale cookie.
     """
 
-    language_code: str | None = None
-    languages: list[tuple[str, str]] | None = None
-    languages_bidi: list[str] | None = None
-    locale_paths: list[str | pathlib.Path] | None = None
-    use_i18n: bool | None = None
+    language_code: Unset[str] = UNSET
+    languages: Unset[list[tuple[str, str]]] = UNSET
+    languages_bidi: Unset[list[str]] = UNSET
+    locale_paths: Unset[list[str | pathlib.Path]] = UNSET
+    use_i18n: Unset[bool] = UNSET
 
-    language_cookie_name: str | None = None
-    language_cookie_age: int | None = None
-    language_cookie_domain: str | None = None
-    language_cookie_path: str | None = None
-    language_cookie_secure: bool | None = None
-    language_cookie_httponly: bool | None = None
-    language_cookie_samesite: str | None = None
+    language_cookie_name: Unset[str] = UNSET
+    language_cookie_age: Unset[int] = UNSET
+    language_cookie_domain: Unset[str] = UNSET
+    language_cookie_path: Unset[str] = UNSET
+    language_cookie_secure: Unset[bool] = UNSET
+    language_cookie_httponly: Unset[bool] = UNSET
+    language_cookie_samesite: Unset[str] = UNSET
 
 
 class Formats(DropUnset, BaseModel):
@@ -333,24 +323,24 @@ class Formats(DropUnset, BaseModel):
     How dates and numbers are rendered and parsed.
     """
 
-    date_format: str | None = None
-    date_input_formats: list[str] | None = None
-    datetime_format: str | None = None
-    datetime_input_formats: list[str] | None = None
-    time_format: str | None = None
-    time_input_formats: list[str] | None = None
-    short_date_format: str | None = None
-    short_datetime_format: str | None = None
-    month_day_format: str | None = None
-    year_month_format: str | None = None
-    first_day_of_week: int | None = None
+    date_format: Unset[str] = UNSET
+    date_input_formats: Unset[list[str]] = UNSET
+    datetime_format: Unset[str] = UNSET
+    datetime_input_formats: Unset[list[str]] = UNSET
+    time_format: Unset[str] = UNSET
+    time_input_formats: Unset[list[str]] = UNSET
+    short_date_format: Unset[str] = UNSET
+    short_datetime_format: Unset[str] = UNSET
+    month_day_format: Unset[str] = UNSET
+    year_month_format: Unset[str] = UNSET
+    first_day_of_week: Unset[int] = UNSET
 
-    decimal_separator: str | None = None
-    thousand_separator: str | None = None
-    number_grouping: int | None = None
-    use_thousand_separator: bool | None = None
+    decimal_separator: Unset[str] = UNSET
+    thousand_separator: Unset[str] = UNSET
+    number_grouping: Unset[int] = UNSET
+    use_thousand_separator: Unset[bool] = UNSET
 
-    format_module_path: str | list[str] | None = None
+    format_module_path: Unset[str | list[str]] = UNSET
 
 
 class Cache(DropUnset, BaseModel):
@@ -358,10 +348,10 @@ class Cache(DropUnset, BaseModel):
     `CACHES` and the caching middleware.
     """
 
-    caches: dict[str, components.Cache] | None = None
-    cache_middleware_alias: str | None = None
-    cache_middleware_key_prefix: str | None = None
-    cache_middleware_seconds: int | None = None
+    caches: Unset[dict[str, components.Cache]] = UNSET
+    cache_middleware_alias: Unset[str] = UNSET
+    cache_middleware_key_prefix: Unset[str] = UNSET
+    cache_middleware_seconds: Unset[int] = UNSET
 
 
 class Logging(DropUnset, BaseModel):
@@ -382,9 +372,9 @@ class Logging(DropUnset, BaseModel):
     ROOT: ClassVar[str] = "root"
     NULL: ClassVar[str] = "null"
 
-    logs_root: pathlib.Path | None = None
+    logs_root: Unset[pathlib.Path] = UNSET
     log_level: LogLevel = "INFO"
-    logging_config: str | None = None
+    logging_config: Unset[str] = UNSET
 
     log_format: str = "{levelname} {asctime} {funcName} {message}"
     log_datefmt: str = "%Y-%m-%d %H:%M:%S %z"
@@ -395,31 +385,46 @@ class Logging(DropUnset, BaseModel):
 
     log_files: dict[str, str] = {}
     """Logger name to the file it writes, e.g. `{"myapp.api": "api.log"}`."""
-    root_log_file: str | None = None
+    root_log_file: Unset[str] = UNSET
     ignored_loggers: list[str] = []
     """Loggers to silence, handed a `NullHandler` of their own."""
+
+    @override
+    def model_post_init(self, context: Any, /) -> None:
+        """
+        Make `logs_root` on the way in.
+
+        `dictConfig` opens every file as it builds the handler, so the
+        directory has to be there before django configures logging — which
+        is after the settings are built, and that is the moment to do it.
+        Building the config is serialization, and serialization has no
+        business writing to disk: a diagnostic dump, a settings comparison
+        in a test and a read-only container each got a `mkdir` out of it.
+        """
+
+        super().model_post_init(context)
+
+        if self.logs_root:
+            self.logs_root.mkdir(parents=True, exist_ok=True)
 
     def _handler_name(self, logger: str) -> str:
         return f"{logger}_file"
 
     @computed_field
-    def logging(self) -> dict[str, Any] | None:
+    def logging(self) -> Unset[dict[str, Any]]:
         """
         Builds the `dictConfig` out of the fields above.
 
         Returns:
-            `None` while `logs_root` is unset, which leaves django's own
-            logging configuration alone.
+            `UNSET` while `logs_root` is unset, so that `LOGGING` is not
+            written at all and django's own configuration stands.
         """
 
         if not self.logs_root:
-            return None
+            return UNSET
 
-        # `dictConfig` opens every file as it builds the handler, so the
-        # directory has to be there by then.
-        self.logs_root.mkdir(parents=True, exist_ok=True)
-
-        files = self.log_files | ({self.ROOT: self.root_log_file} if self.root_log_file else {})
+        root = {self.ROOT: self.root_log_file} if self.root_log_file else {}
+        files: dict[str, str] = self.log_files | root
         config: dict[str, Any] = {
             "version": 1,
             "disable_existing_loggers": False,
@@ -462,9 +467,9 @@ class Messages(DropUnset, BaseModel):
     storage backend falls back to `INFO` and to the built-in tags.
     """
 
-    message_storage: str | None = None
-    message_level: int | None = None
-    message_tags: dict[int, str] | None = None
+    message_storage: Unset[str] = UNSET
+    message_level: Unset[int] = UNSET
+    message_tags: Unset[dict[int, str]] = UNSET
 
 
 class Tasks(DropUnset, BaseModel):
@@ -472,7 +477,7 @@ class Tasks(DropUnset, BaseModel):
     `TASKS`, which django gained in 6.0.
     """
 
-    tasks: dict[str, components.TaskBackend] | None = None
+    tasks: Unset[dict[str, components.TaskBackend]] = UNSET
 
 
 class Testing(DropUnset, BaseModel):
@@ -480,6 +485,6 @@ class Testing(DropUnset, BaseModel):
     The test runner and what it loads.
     """
 
-    test_runner: str | None = None
-    test_non_serialized_apps: list[str] | None = None
-    fixture_dirs: list[str | pathlib.Path] | None = None
+    test_runner: Unset[str] = UNSET
+    test_non_serialized_apps: Unset[list[str]] = UNSET
+    fixture_dirs: Unset[list[str | pathlib.Path]] = UNSET

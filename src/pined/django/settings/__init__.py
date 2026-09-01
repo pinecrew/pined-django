@@ -9,10 +9,11 @@ from .components import (
     TaskBackend,
     TemplateEngine,
 )
-from .settings import DjangoSettings, configure
-from .utils import DjangoModel, DropUnset
+from .settings import DjangoSettings, build_settings, configure
+from .utils import UNSET, DjangoModel, DropUnset, Unset, UnsetType
 
 __all__ = [
+    "UNSET",
     "Cache",
     "Database",
     "Databases",
@@ -24,6 +25,9 @@ __all__ = [
     "Storage",
     "TaskBackend",
     "TemplateEngine",
+    "Unset",
+    "UnsetType",
+    "build_settings",
     "components",
     "configure",
     "mixins",

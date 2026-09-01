@@ -8,7 +8,7 @@ from typing import Any
 import pydantic
 import pytest
 
-from pined.django.settings import DjangoSettings, configure, mixins
+from pined.django.settings import DjangoSettings, build_settings, configure, mixins
 from tests.settings.conftest import Loader
 
 SQLITE = {
@@ -57,7 +57,6 @@ def test_the_module_gets_the_settings_and_nothing_else(load_settings: Loader) ->
         "SECRET_KEY": "from-the-module",
         "ALLOWED_HOSTS": ["localhost"],
         "DATABASES": {"default": SQLITE},
-        "SESSION_COOKIE_SAMESITE": "Lax",
     }
 
 
@@ -74,8 +73,47 @@ def test_the_settings_come_back_as_well(load_settings: Loader) -> None:
         "ALLOWED_HOSTS",
         "DATABASES",
         "SECRET_KEY",
-        "SESSION_COOKIE_SAMESITE",
     ]
+
+
+def test_there_has_to_be_a_module_to_fill() -> None:
+    """
+    Called anywhere but the top level of a module, it says so.
+
+    `f_locals` is the module's own globals in a settings module, and a
+    write-through proxy onto the caller's variables in a function — PEP 667
+    made it one in 3.13, and before that it was a snapshot nobody read. So
+    the same call did nothing on one python and rewrote a local named after
+    a setting on the next. Neither is worth keeping: filling a module is
+    all `configure` adds to `build_settings`, and where there is no module
+    the call was a mistake.
+    """
+
+    class Named(mixins.General):
+        secret_key: str = "from-the-part"
+
+    SECRET_KEY = "mine"  # noqa: N806
+
+    with pytest.raises(RuntimeError, match="build_settings"):
+        configure(Named, env_file=None)
+
+    assert SECRET_KEY == "mine"
+    assert "SECRET_KEY" not in globals()
+
+
+def test_build_settings_writes_nothing() -> None:
+    """
+    The same assembly, for a test or a script that only means to look.
+    """
+
+    class Named(mixins.General):
+        secret_key: str = "from-the-part"
+
+    SECRET_KEY = "mine"  # noqa: N806
+
+    assert build_settings(Named, env_file=None).secret_key == "from-the-part"
+    assert SECRET_KEY == "mine"
+    assert "SECRET_KEY" not in globals()
 
 
 def test_earlier_parts_win() -> None:
@@ -89,8 +127,8 @@ def test_earlier_parts_win() -> None:
     class Second(mixins.General):
         secret_key: str = "second"
 
-    assert configure(First, Second, env_file=None).secret_key == "first"
-    assert configure(Second, First, env_file=None).secret_key == "second"
+    assert build_settings(First, Second, env_file=None).secret_key == "first"
+    assert build_settings(Second, First, env_file=None).secret_key == "second"
 
 
 def test_a_part_that_is_already_settings_stays_the_base(load_settings: Loader) -> None:
@@ -109,12 +147,12 @@ def test_a_part_that_will_not_do() -> None:
     A part that is not a class, and one that refuses its own values.
 
     There is no friendly error for the first — `issubclass` raises before
-    `configure` gets a look in, and that is fine. The second is the part's
+    the assembly gets a look in, and that is fine. The second is the part's
     own business: cross-field checks belong to whoever declared the fields.
     """
 
     with pytest.raises(TypeError):
-        configure("not a class", env_file=None)
+        build_settings("not a class", env_file=None)
 
     class Reporting(mixins.General):
         sentry_dsn: str | None = None
@@ -130,10 +168,10 @@ def test_a_part_that_will_not_do() -> None:
         debug: bool = True
         sentry_dsn: str | None = "https://sentry.example.com/1"
 
-    assert configure(Reporting, env_file=None).sentry_dsn is None
+    assert build_settings(Reporting, env_file=None).sentry_dsn is None
 
     with pytest.raises(pydantic.ValidationError, match="no business"):
-        configure(Reported, env_file=None)
+        build_settings(Reported, env_file=None)
 
 
 @pytest.mark.parametrize(

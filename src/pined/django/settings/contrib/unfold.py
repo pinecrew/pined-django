@@ -13,7 +13,7 @@ except ImportError as exc:
     msg = 'To use `settings`, install package with "settings" option: pined-django[settings].'
     raise ImportError(msg) from exc
 
-from pined.django.settings.utils import DjangoModel, DropUnset
+from pined.django.settings.utils import UNSET, DjangoModel, DropUnset, Unset
 
 
 class Unfold(DjangoModel):
@@ -26,42 +26,42 @@ class Unfold(DjangoModel):
     so they are left open.
     """
 
-    site_title: str | None = None
-    site_header: str | None = None
-    site_subheader: str | None = None
-    site_version: str | None = None
-    site_url: str | None = None
-    site_symbol: str | None = None
-    site_icon: Any = None
-    site_logo: Any = None
-    site_favicons: list[dict[str, Any]] | None = None
-    site_dropdown: list[dict[str, Any]] | None = None
-    site_views: list[Any] | None = None
+    site_title: Unset[str] = UNSET
+    site_header: Unset[str] = UNSET
+    site_subheader: Unset[str] = UNSET
+    site_version: Unset[str] = UNSET
+    site_url: Unset[str] = UNSET
+    site_symbol: Unset[str] = UNSET
+    site_icon: Any = UNSET
+    site_logo: Any = UNSET
+    site_favicons: Unset[list[dict[str, Any]]] = UNSET
+    site_dropdown: Unset[list[dict[str, Any]]] = UNSET
+    site_views: Unset[list[Any]] = UNSET
 
-    show_history: bool | None = None
-    show_view_on_site: bool | None = None
-    show_languages: bool | None = None
-    show_back_button: bool | None = None
-    show_ui_warnings: bool | None = None
+    show_history: Unset[bool] = UNSET
+    show_view_on_site: Unset[bool] = UNSET
+    show_languages: Unset[bool] = UNSET
+    show_back_button: Unset[bool] = UNSET
+    show_ui_warnings: Unset[bool] = UNSET
 
-    environment: str | Callable[..., Any] | None = None
-    environment_title_prefix: str | None = None
+    environment: Unset[str | Callable[..., Any]] = UNSET
+    environment_title_prefix: Unset[str] = UNSET
 
-    global_callback: str | Callable[..., Any] | None = None
-    dashboard_callback: str | Callable[..., Any] | None = None
+    global_callback: Unset[str | Callable[..., Any]] = UNSET
+    dashboard_callback: Unset[str | Callable[..., Any]] = UNSET
 
-    styles: list[Any] | None = None
-    scripts: list[Any] | None = None
-    tabs: list[dict[str, Any]] | None = None
+    styles: Unset[list[Any]] = UNSET
+    scripts: Unset[list[Any]] = UNSET
+    tabs: Unset[list[dict[str, Any]]] = UNSET
 
-    language_flags: dict[str, str] | None = None
-    colors: dict[str, Any] | None = None
-    forms: dict[str, Any] | None = None
-    sidebar: dict[str, Any] | None = None
-    login: dict[str, Any] | None = None
-    command: dict[str, Any] | None = None
-    account: dict[str, Any] | None = None
-    languages: dict[str, Any] | None = None
+    language_flags: Unset[dict[str, str]] = UNSET
+    colors: Unset[dict[str, Any]] = UNSET
+    forms: Unset[dict[str, Any]] = UNSET
+    sidebar: Unset[dict[str, Any]] = UNSET
+    login: Unset[dict[str, Any]] = UNSET
+    command: Unset[dict[str, Any]] = UNSET
+    account: Unset[dict[str, Any]] = UNSET
+    languages: Unset[dict[str, Any]] = UNSET
 
 
 class UnfoldSettings(DropUnset, BaseModel):
@@ -69,4 +69,4 @@ class UnfoldSettings(DropUnset, BaseModel):
     `UNFOLD`.
     """
 
-    unfold: Unfold | dict[str, Any] | None = None
+    unfold: Unset[Unfold | dict[str, Any]] = UNSET

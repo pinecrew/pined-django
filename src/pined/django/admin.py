@@ -15,33 +15,37 @@ def hide_related_actions(
     can_delete: bool = False,
 ) -> None:
     """
-    Hide available related-model-based actions from field's widget
-    (ForeignKey, ManyToManyField).
+    Hide the related-model actions on a related field's widget.
 
-    This method should be used in `get_form` or `get_formset` methods of
-    ModelAdmin or InlineModelAdmin, respectively.
-
-    Example:
-        Hide every button for "author" and "publisher".
-        Hide "delete" button for "genre".
-
-        >>> @admin.register(Book)
-        >>> class BookAdmin(admin.ModelAdmin):
-        >>>     def get_form(self, request, *args, **kwargs):
-        >>>         form = super().get_form(request, *args, **kwargs)
-        >>>
-        >>>         for name in ("author", "publisher"):
-        >>>             hide_related_actions(form.base_fields[name])
-        >>>
-        >>>         hide_related_actions(form.base_fields["genre"], can_add=True, can_change=True, can_view=True)
-        >>>         return form
+    The icons beside a `ForeignKey` or a `ManyToManyField` — add, change,
+    delete, view — are all on by default, and each keyword left `False`
+    takes one away. Belongs in `get_form` on a `ModelAdmin`, or in
+    `get_formset` on an `InlineModelAdmin`.
 
     Args:
-        field: form field of a related model, taken from `form.base_fields`
-        can_view: leave "view" icon
-        can_add: leave "add" icon
-        can_change: leave "change" icon
-        can_delete: leave "delete" icon
+        field: A related model's form field, out of `form.base_fields`.
+        can_view: Leave the "view" icon.
+        can_add: Leave the "add" icon.
+        can_change: Leave the "change" icon.
+        can_delete: Leave the "delete" icon.
+
+    Example:
+        Every icon gone from "author" and "publisher"; "change" and
+        "delete" gone from "genre":
+
+        ```
+        @admin.register(Book)
+        class BookAdmin(admin.ModelAdmin):
+            def get_form(self, request, *args, **kwargs):
+                form = super().get_form(request, *args, **kwargs)
+                genre = form.base_fields["genre"]
+
+                for name in ("author", "publisher"):
+                    hide_related_actions(form.base_fields[name])
+
+                hide_related_actions(genre, can_add=True, can_view=True)
+                return form
+        ```
     """
 
     widget = field.widget

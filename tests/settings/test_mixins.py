@@ -2,32 +2,29 @@
 The mixins — what each one brings before a project touches it.
 
 A mixin's whole job is to declare django's settings surface and stay out
-of the way, so the interesting assertion is that almost nothing arrives
-unasked. The few defaults that do are the ones the library takes a
-position on.
+of the way, so the interesting assertion is that nothing arrives unasked
+— save `Logging`, which builds a `dictConfig` rather than passing values
+through, and needs its parts to have values.
 """
 
 from typing import Any
 
 import pytest
 
-from pined.django.settings import DropUnset, components, configure, mixins
+from pined.django.settings import UNSET, DropUnset, build_settings, components, mixins
 
 EXPECTED_DEFAULTS: dict[str, dict[str, Any]] = {
     "General": {},
     "Apps": {},
     "Database": {},
     "Auth": {},
-    "Session": {"SESSION_COOKIE_SAMESITE": "Lax"},
-    "Csrf": {"CSRF_COOKIE_SAMESITE": "Lax"},
-    "Security": {
-        "SECURE_CROSS_ORIGIN_OPENER_POLICY": "same-origin",
-        "SECURE_REFERRER_POLICY": "same-origin",
-    },
+    "Session": {},
+    "Csrf": {},
+    "Security": {},
     "Email": {},
     "Templates": {},
     "Static": {},
-    "Uploads": {"FILE_UPLOAD_PERMISSIONS": 0o644},
+    "Uploads": {},
     "I18n": {},
     "Formats": {},
     "Cache": {},
@@ -66,7 +63,7 @@ def test_a_bare_mixin_brings_only_what_it_stands_behind(name: str, expected: dic
     Everything else stays unset, so django keeps its own default.
     """
 
-    settings = configure(getattr(mixins, name), env_prefix="PINEDTEST_", env_file=None)
+    settings = build_settings(getattr(mixins, name), env_prefix="PINEDTEST_", env_file=None)
 
     assert settings.model_dump(by_alias=True) == expected
 
@@ -79,7 +76,9 @@ def test_a_mixin_on_its_own_is_not_a_settings_class() -> None:
     leaves the aliasing to whatever `configure` builds around it.
     """
 
-    assert mixins.Session().model_dump(by_alias=True) == {"session_cookie_samesite": "Lax"}
+    assert mixins.Session(session_cookie_samesite="Strict").model_dump(by_alias=True) == {
+        "session_cookie_samesite": "Strict"
+    }
 
 
 def test_the_classvars_a_project_splats_in() -> None:
@@ -123,4 +122,4 @@ def test_the_django_template_engine() -> None:
     engine = mixins.Templates.DJANGO_ENGINE.model_copy(update={"dirs": ["templates"]})
 
     assert engine.model_dump(by_alias=True)["DIRS"] == ["templates"]
-    assert mixins.Templates.DJANGO_ENGINE.dirs is None
+    assert mixins.Templates.DJANGO_ENGINE.dirs is UNSET

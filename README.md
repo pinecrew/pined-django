@@ -114,17 +114,34 @@ Libraries lose their defaults the same way — they look their settings up with
 `getattr(settings, name, default)`, and the `None` sitting in the module is
 handed back instead.
 
-As a model, a field that comes out `None` is never written at all:
+As a model, a field left at `UNSET` is never written at all:
 
 ```python
+from pined.django.settings import UNSET, Unset, mixins
+
+
 class Security(mixins.Security):
-    x_frame_options: str | None = None      # absent, so Django's default DENY stands
+    x_frame_options: Unset[str] = UNSET     # absent, so Django's default DENY stands
 ```
 
 `MYPROJECT_X_FRAME_OPTIONS=SAMEORIGIN` sets it. Nothing else touches it.
 
-Where `None` is a value in its own right — a cookie with no `SameSite`, a file
-mode Django shouldn't force — the mixin says so, and it reaches Django intact.
+`UNSET` rather than `None` because the two are different answers, and a settings
+model needs to give both. It is a sentinel object reached by identity — nothing
+validates into it, so a stray `MYPROJECT_SECRET_KEY=1` is an error rather than a
+setting quietly going missing. `None` is a value in its own right — a cookie with no
+`SameSite`, a file mode Django shouldn't force — so a field written as `None`
+reaches Django as `None`:
+
+```python
+class Session(mixins.Session):
+    session_cookie_samesite: Unset[str | None] = None   # SESSION_COOKIE_SAMESITE = None
+```
+
+Which is also why the mixins carry no values of their own. A field declared
+`= "Lax"` because that is what Django's default happens to be today would go on
+writing `"Lax"` into every project long after Django had moved on — the very
+thing this section is about.
 
 |                       | Constants in a module      | `pined.django.settings`                                 |
 | --------------------- | -------------------------- | ------------------------------------------------------- |
@@ -240,16 +257,21 @@ python manage.py uptime -s      # at the top of the sequence
 python manage.py uptime         # 4 days, 1:04:35.271442 — cheap enough for a healthcheck
 ```
 
-Together, a whole start-up sequence. `--allow-failure` marks the step that is
-allowed to fail — the superuser already exists on every deploy after the first:
+Together, a whole start-up sequence. `--allow-failure` marks a step that is
+allowed to fail — here, a warm-up nobody should be woken up over:
 
 ```bash
 python manage.py chain \
     --manage 'migrate --noinput' \
     --manage 'collectstatic --noinput' \
-    --manage 'create_admin -u $ADMIN_USER -p $ADMIN_PASSWORD -e $ADMIN_EMAIL' --allow-failure \
+    --manage 'create_admin -u $ADMIN_USER -p $ADMIN_PASSWORD -e $ADMIN_EMAIL' \
+    --shell 'curl -sf localhost:8000/warmup' --allow-failure \
     --manage 'uptime -s'
 ```
+
+`create_admin` needs no `--allow-failure`: it already treats "that user exists"
+as the ordinary outcome of a second deploy, and the flag would hide the failures
+it does report.
 
 ### Logging
 
@@ -338,6 +360,19 @@ are in precedence order — the first one wins a clash. The keyword arguments ar
 [`SettingsConfigDict`](https://docs.pydantic.dev/latest/api/pydantic_settings/)
 keys.
 
+It belongs at the top level of a settings module, and raises anywhere else —
+there is no module in a function to fill, and the frame it would reach for there
+holds the caller's own variables. `build_settings(*parts, **model_config)` is the
+same assembly with nothing written anywhere, which is what a test or a script
+that only means to look at the settings wants:
+
+```python
+from pined.django.settings import build_settings
+
+settings = build_settings(General, Database, env_file=None)
+assert settings.databases.default.url.startswith("postgres://")
+```
+
 ```python
 configure(General, Apps, Database, env_prefix="MYPROJECT_", env_file=".env.local")
 ```
@@ -351,7 +386,7 @@ import pydantic
 
 
 class Reporting(General):
-    sentry_dsn: str | None = None       # lands as SENTRY_DSN
+    sentry_dsn: Unset[str] = UNSET      # lands as SENTRY_DSN
 
     @pydantic.model_validator(mode="after")
     def no_debug_where_reported(self) -> "Reporting":
@@ -476,18 +511,18 @@ built on `DropUnset`:
 ```python
 from pydantic import BaseModel
 
-from pined.django.settings import DjangoModel, DropUnset
+from pined.django.settings import UNSET, DjangoModel, DropUnset, Unset
 
 
 class Payments(DjangoModel):
     api_key: str
     currency: str = "EUR"
-    timeout: float | None = None            # absent from PAYMENTS unless set
+    timeout: Unset[float] = UNSET           # absent from PAYMENTS unless set
 
 
 class Billing(DropUnset, BaseModel):
     payments: Payments = Payments(api_key="")   # lands as PAYMENTS
-    invoice_prefix: str | None = None           # lands as INVOICE_PREFIX
+    invoice_prefix: Unset[str] = UNSET          # lands as INVOICE_PREFIX
 
 
 configure(General, Apps, Database, Billing, env_prefix="MYPROJECT_")
